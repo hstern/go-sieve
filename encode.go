@@ -115,8 +115,15 @@ func (e *encoder) encodeCommand(c Command) error {
 		if v.Copy {
 			e.b.WriteString(" :copy")
 		}
+		if v.Create {
+			e.b.WriteString(" :create")
+		}
 		e.b.WriteByte(' ')
 		e.b.WriteString(quote(v.Mailbox))
+		e.b.WriteString(";\n")
+	case *Error:
+		e.b.WriteString("error ")
+		e.b.WriteString(quote(v.Message))
 		e.b.WriteString(";\n")
 	case *Redirect:
 		e.b.WriteString("redirect")
@@ -268,6 +275,56 @@ func (e *encoder) encodeTest(t Test) error {
 		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Keys)
+	case *MailboxExistsTest:
+		e.b.WriteString("mailboxexists ")
+		e.writeStringList(v.Mailboxes)
+	case *SpamTest:
+		e.b.WriteString("spamtest")
+		if v.Percent {
+			e.b.WriteString(" :percent")
+		}
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Value))
+	case *VirusTest:
+		e.b.WriteString("virustest")
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Value))
+	case *EnvironmentTest:
+		e.b.WriteString("environment")
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Name))
+		e.b.WriteByte(' ')
+		e.writeStringList(v.Keys)
+	case *DuplicateTest:
+		e.b.WriteString("duplicate")
+		if v.Handle != "" {
+			e.b.WriteString(" :handle ")
+			e.b.WriteString(quote(v.Handle))
+		}
+		if v.Header != "" {
+			e.b.WriteString(" :header ")
+			e.b.WriteString(quote(v.Header))
+		}
+		if v.UniqueID != "" {
+			e.b.WriteString(" :uniqueid ")
+			e.b.WriteString(quote(v.UniqueID))
+		}
+		if v.HasSeconds {
+			e.b.WriteString(" :seconds ")
+			e.b.WriteString(strconv.FormatUint(v.Seconds, 10))
+		}
+		if v.Last {
+			e.b.WriteString(" :last")
+		}
+	case *IHaveTest:
+		e.b.WriteString("ihave ")
+		e.writeStringList(v.Capabilities)
 	case *AllOf:
 		e.b.WriteString("allof ")
 		return e.encodeTestList(v.Tests)

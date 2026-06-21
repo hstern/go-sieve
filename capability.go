@@ -8,11 +8,18 @@ import "sort"
 // Capability strings declared via require (RFC 5228 §2.10.5 and the
 // extension RFCs).
 const (
-	capFileInto   = "fileinto"
-	capCopy       = "copy"
-	capImap4Flags = "imap4flags"
-	capEnvelope   = "envelope"
-	capBody       = "body"
+	capFileInto     = "fileinto"
+	capCopy         = "copy"
+	capImap4Flags   = "imap4flags"
+	capEnvelope     = "envelope"
+	capBody         = "body"
+	capMailbox      = "mailbox"
+	capIhave        = "ihave"
+	capSpamTest     = "spamtest"
+	capSpamTestPlus = "spamtestplus"
+	capVirusTest    = "virustest"
+	capEnvironment  = "environment"
+	capDuplicate    = "duplicate"
 )
 
 // Capabilities returns the sorted, de-duplicated set of extension
@@ -49,12 +56,17 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 			if v.Copy {
 				addCap(set, capCopy)
 			}
+			if v.Create {
+				addCap(set, capMailbox)
+			}
 		case *Redirect:
 			if v.Copy {
 				addCap(set, capCopy)
 			}
 		case *SetFlag, *AddFlag, *RemoveFlag:
 			addCap(set, capImap4Flags)
+		case *Error:
+			addCap(set, capIhave)
 		case *If:
 			collectTestCaps(v.Test, set)
 			collectCommandCaps(v.Then, set)
@@ -86,6 +98,24 @@ func collectTestCaps(t Test, set map[string]struct{}) {
 		addCap(set, capEnvelope, comparatorCap(v.Comparator), matchCap(v.MatchType), addressPartCap(v.AddressPart))
 	case *BodyTest:
 		addCap(set, capBody, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *MailboxExistsTest:
+		addCap(set, capMailbox)
+	case *SpamTest:
+		// spamtestplus is a superset of spamtest; :percent needs it alone.
+		if v.Percent {
+			addCap(set, capSpamTestPlus)
+		} else {
+			addCap(set, capSpamTest)
+		}
+		addCap(set, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *VirusTest:
+		addCap(set, capVirusTest, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *EnvironmentTest:
+		addCap(set, capEnvironment, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *DuplicateTest:
+		addCap(set, capDuplicate)
+	case *IHaveTest:
+		addCap(set, capIhave)
 	case *AllOf:
 		for _, sub := range v.Tests {
 			collectTestCaps(sub, set)

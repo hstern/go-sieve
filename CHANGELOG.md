@@ -8,6 +8,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Extensions: **mailbox** (`fileinto :create`, `mailboxexists`, RFC 5490),
+  **spamtest**/**virustest** (RFC 5235), **environment** (RFC 5183),
+  **duplicate** (RFC 7352), and **ihave**/**error** (RFC 5463) — new typed
+  test and action nodes deriving their capabilities.
 - Extensions: **relational** (`:count`/`:value` + operator, RFC 5231),
   **subaddress** (`:user`/`:detail` address-parts, RFC 5233), and **regex**
   (`:regex` match-type, draft) — now modelled as typed match-types /

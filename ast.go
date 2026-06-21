@@ -65,9 +65,17 @@ type Discard struct{}
 
 // FileInto files the message into Mailbox (RFC 5228 fileinto extension).
 // Copy adds the :copy tag (RFC 3894), leaving the implicit keep intact.
+// Create adds the :create tag (RFC 5490 mailbox), creating the mailbox if
+// it does not exist.
 type FileInto struct {
 	Mailbox string
 	Copy    bool
+	Create  bool
+}
+
+// Error aborts processing with a message (RFC 5463 ihave/error extension).
+type Error struct {
+	Message string
 }
 
 // Redirect forwards the message to Address (§4.4). Copy adds the :copy
@@ -131,6 +139,7 @@ func (*Redirect) isCommand()   {}
 func (*SetFlag) isCommand()    {}
 func (*AddFlag) isCommand()    {}
 func (*RemoveFlag) isCommand() {}
+func (*Error) isCommand()      {}
 func (*RawCommand) isCommand() {}
 
 // ---- Tests (RFC 5228 §5) ----
@@ -186,6 +195,58 @@ type BodyTest struct {
 	Keys         []string
 }
 
+// MailboxExistsTest is true if every named mailbox exists (RFC 5490
+// mailbox).
+type MailboxExistsTest struct {
+	Mailboxes []string
+}
+
+// SpamTest matches the message's spam score against Value (RFC 5235
+// spamtest). Percent adds the :percent tag (require "spamtestplus").
+type SpamTest struct {
+	Percent    bool
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	Value      string
+}
+
+// VirusTest matches the message's virus-check score against Value
+// (RFC 5235 virustest).
+type VirusTest struct {
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	Value      string
+}
+
+// EnvironmentTest matches a named environment item (RFC 5183 environment),
+// e.g. "name", "host", "remote-host".
+type EnvironmentTest struct {
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	Name       string
+	Keys       []string
+}
+
+// DuplicateTest is true when the message is a duplicate by tracked id
+// (RFC 7352 duplicate). Header and UniqueID are mutually exclusive.
+type DuplicateTest struct {
+	Handle     string
+	Header     string
+	UniqueID   string
+	Seconds    uint64
+	HasSeconds bool
+	Last       bool
+}
+
+// IHaveTest is true if the implementation supports all listed capabilities
+// (RFC 5463 ihave), enabling graceful feature-testing.
+type IHaveTest struct {
+	Capabilities []string
+}
+
 // True always matches (§5.10).
 type True struct{}
 
@@ -214,18 +275,24 @@ type RawTest struct {
 	Args []Argument
 }
 
-func (*HeaderTest) isTest()   {}
-func (*AddressTest) isTest()  {}
-func (*EnvelopeTest) isTest() {}
-func (*ExistsTest) isTest()   {}
-func (*SizeTest) isTest()     {}
-func (*BodyTest) isTest()     {}
-func (*True) isTest()         {}
-func (*False) isTest()        {}
-func (*AllOf) isTest()        {}
-func (*AnyOf) isTest()        {}
-func (*Not) isTest()          {}
-func (*RawTest) isTest()      {}
+func (*HeaderTest) isTest()        {}
+func (*AddressTest) isTest()       {}
+func (*EnvelopeTest) isTest()      {}
+func (*ExistsTest) isTest()        {}
+func (*SizeTest) isTest()          {}
+func (*BodyTest) isTest()          {}
+func (*MailboxExistsTest) isTest() {}
+func (*SpamTest) isTest()          {}
+func (*VirusTest) isTest()         {}
+func (*EnvironmentTest) isTest()   {}
+func (*DuplicateTest) isTest()     {}
+func (*IHaveTest) isTest()         {}
+func (*True) isTest()              {}
+func (*False) isTest()             {}
+func (*AllOf) isTest()             {}
+func (*AnyOf) isTest()             {}
+func (*Not) isTest()               {}
+func (*RawTest) isTest()           {}
 
 // ---- Arguments (for carrier nodes) ----
 
