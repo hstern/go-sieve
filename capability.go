@@ -72,10 +72,14 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 
 func collectTestCaps(t Test, set map[string]struct{}) {
 	switch v := t.(type) {
+	case *HeaderTest:
+		addCap(set, comparatorCap(v.Comparator))
+	case *AddressTest:
+		addCap(set, comparatorCap(v.Comparator))
 	case *EnvelopeTest:
-		addCap(set, capEnvelope)
+		addCap(set, capEnvelope, comparatorCap(v.Comparator))
 	case *BodyTest:
-		addCap(set, capBody)
+		addCap(set, capBody, comparatorCap(v.Comparator))
 	case *AllOf:
 		for _, sub := range v.Tests {
 			collectTestCaps(sub, set)
@@ -86,5 +90,19 @@ func collectTestCaps(t Test, set map[string]struct{}) {
 		}
 	case *Not:
 		collectTestCaps(v.Test, set)
+	}
+}
+
+// comparatorCap returns the capability a comparator requires, or "" for
+// the two built-in comparators that need no require (RFC 5228 §2.7.3:
+// i;ascii-casemap and i;octet are mandatory-to-implement). Any other
+// comparator must be declared with require "comparator-<name>"
+// (RFC 5228 §2.7.3, RFC 4790 §3.1).
+func comparatorCap(comp string) string {
+	switch comp {
+	case "", defaultComparator, "i;octet":
+		return ""
+	default:
+		return "comparator-" + comp
 	}
 }
