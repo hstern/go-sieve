@@ -174,6 +174,12 @@ func (e *encoder) encodeRawCommand(v *RawCommand) error {
 		e.b.WriteByte(' ')
 		e.encodeArg(a)
 	}
+	if v.Test != nil {
+		e.b.WriteByte(' ')
+		if err := e.encodeTest(v.Test); err != nil {
+			return err
+		}
+	}
 	if v.HasBlock {
 		e.b.WriteString(" {\n")
 		e.indent++

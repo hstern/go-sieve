@@ -4,10 +4,16 @@
 package sieve
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 )
+
+// errUnknownTag is an internal sentinel: a known command or test hit a tag
+// this package does not model. The dispatcher catches it, rewinds, and
+// re-parses the whole construct as a carrier so it round-trips verbatim.
+var errUnknownTag = errors.New("sieve: unknown tag")
 
 // ParseError reports a syntax error in a Sieve script, with the 1-based
 // line and column where it was detected. A ParseError is fatal: the
@@ -120,18 +126,32 @@ func (p *parser) parseCommand() (Command, error) {
 	case "else":
 		return nil, p.errAt(t, "else without matching if")
 	case "fileinto":
-		return p.parseFileInto()
+		return p.knownCommandOrRaw("fileinto", p.parseFileInto)
 	case "redirect":
-		return p.parseRedirect()
-	case "setflag":
-		return p.parseFlagCommand("setflag")
-	case "addflag":
-		return p.parseFlagCommand("addflag")
-	case "removeflag":
-		return p.parseFlagCommand("removeflag")
+		return p.knownCommandOrRaw("redirect", p.parseRedirect)
+	case "setflag", "addflag", "removeflag":
+		// The no-variable flag commands take only a string-list; any tag
+		// means an unmodelled form, so preserve the whole command.
+		if p.peek().kind == tTag {
+			return p.parseRawCommand(t.text)
+		}
+		return p.parseFlagCommand(t.text)
 	default:
 		return p.parseRawCommand(t.text)
 	}
+}
+
+// knownCommandOrRaw runs a modelled-command parser, but if it reports an
+// unmodelled tag, rewinds to just after the command name and re-parses the
+// whole command as a carrier so it round-trips verbatim.
+func (p *parser) knownCommandOrRaw(name string, parse func() (Command, error)) (Command, error) {
+	start := p.pos
+	c, err := parse()
+	if errors.Is(err, errUnknownTag) {
+		p.pos = start
+		return p.parseRawCommand(name)
+	}
+	return c, err
 }
 
 func (p *parser) parseIf() (Command, error) {
@@ -188,10 +208,10 @@ func (p *parser) parseBlock() ([]Command, error) {
 func (p *parser) parseFileInto() (Command, error) {
 	f := &FileInto{}
 	for p.peek().kind == tTag {
-		tag := p.next()
-		if tag.text != "copy" {
-			return nil, p.errAt(tag, "unexpected tag :"+tag.text+" on fileinto")
+		if p.peek().text != "copy" {
+			return nil, errUnknownTag
 		}
+		p.next()
 		f.Copy = true
 	}
 	mbox, err := p.parseSingleString()
@@ -205,10 +225,10 @@ func (p *parser) parseFileInto() (Command, error) {
 func (p *parser) parseRedirect() (Command, error) {
 	r := &Redirect{}
 	for p.peek().kind == tTag {
-		tag := p.next()
-		if tag.text != "copy" {
-			return nil, p.errAt(tag, "unexpected tag :"+tag.text+" on redirect")
+		if p.peek().text != "copy" {
+			return nil, errUnknownTag
 		}
+		p.next()
 		r.Copy = true
 	}
 	addr, err := p.parseSingleString()
@@ -243,6 +263,22 @@ func (p *parser) parseRawCommand(name string) (Command, error) {
 		return nil, err
 	}
 	rc := &RawCommand{Name: name, Args: args}
+	// An unmodelled control command may take a test argument before its
+	// block (e.g. a custom if-like command).
+	if p.peek().kind == tIdent {
+		test, err := p.parseTest()
+		if err != nil {
+			return nil, err
+		}
+		block, err := p.parseBlock()
+		if err != nil {
+			return nil, err
+		}
+		rc.Test = test
+		rc.Block = block
+		rc.HasBlock = true
+		return rc, nil
+	}
 	t := p.next()
 	switch t.kind {
 	case tSemicolon:
@@ -302,16 +338,28 @@ func (p *parser) parseTest() (Test, error) {
 	case "size":
 		return p.parseSizeTest()
 	case "header":
-		return p.parseHeaderTest()
+		return p.knownTestOrRaw("header", p.parseHeaderTest)
 	case "address":
-		return p.parseAddressTest()
+		return p.knownTestOrRaw("address", p.parseAddressTest)
 	case "envelope":
-		return p.parseEnvelopeTest()
+		return p.knownTestOrRaw("envelope", p.parseEnvelopeTest)
 	case "body":
-		return p.parseBodyTest()
+		return p.knownTestOrRaw("body", p.parseBodyTest)
 	default:
 		return p.parseRawTest(t.text)
 	}
+}
+
+// knownTestOrRaw is the test-side counterpart of knownCommandOrRaw: on an
+// unmodelled tag it rewinds and preserves the whole test as a carrier.
+func (p *parser) knownTestOrRaw(name string, parse func() (Test, error)) (Test, error) {
+	start := p.pos
+	t, err := parse()
+	if errors.Is(err, errUnknownTag) {
+		p.pos = start
+		return p.parseRawTest(name)
+	}
+	return t, err
 }
 
 func (p *parser) parseTestList() ([]Test, error) {
@@ -398,7 +446,7 @@ func (p *parser) parseHeaderTest() (Test, error) {
 			return nil, err
 		}
 		if !ok {
-			return nil, p.errAt(tag, "unexpected tag :"+tag.text+" on header")
+			return nil, errUnknownTag
 		}
 	}
 	headers, err := p.parseStringList()
@@ -425,7 +473,7 @@ func (p *parser) parseAddressTest() (Test, error) {
 			return nil, err
 		}
 		if !ok {
-			return nil, p.errAt(tag, "unexpected tag :"+tag.text+" on address")
+			return nil, errUnknownTag
 		}
 	}
 	headers, err := p.parseStringList()
@@ -452,7 +500,7 @@ func (p *parser) parseEnvelopeTest() (Test, error) {
 			return nil, err
 		}
 		if !ok {
-			return nil, p.errAt(tag, "unexpected tag :"+tag.text+" on envelope")
+			return nil, errUnknownTag
 		}
 	}
 	parts, err := p.parseStringList()
@@ -492,7 +540,7 @@ func (p *parser) parseBodyTest() (Test, error) {
 			return nil, err
 		}
 		if !ok {
-			return nil, p.errAt(tag, "unexpected tag :"+tag.text+" on body")
+			return nil, errUnknownTag
 		}
 	}
 	keys, err := p.parseStringList()

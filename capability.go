@@ -63,10 +63,16 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 				collectCommandCaps(b.Then, set)
 			}
 			collectCommandCaps(v.Else, set)
+		case *RawCommand:
+			// The carrier command contributes nothing itself (its own
+			// capability rides on an explicit Require), but a modelled test
+			// or block it carries still does.
+			if v.Test != nil {
+				collectTestCaps(v.Test, set)
+			}
+			collectCommandCaps(v.Block, set)
 		}
-		// *Keep, *Discard, *Stop, *RawCommand contribute nothing
-		// automatically; a RawCommand's capability is carried by an
-		// explicit Require.
+		// *Keep, *Discard, *Stop contribute nothing.
 	}
 }
 

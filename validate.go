@@ -197,6 +197,9 @@ func (d *Diagnostics) walk(cmds []Command, depth int, path string, sc *capScan) 
 			d.walk(v.Else, depth+1, cp+".else", sc)
 		case *RawCommand:
 			sc.carriers[v.Name] = struct{}{}
+			if v.Test != nil {
+				d.walkTest(v.Test, cp+".test", sc)
+			}
 			d.walk(v.Block, depth+1, cp, sc)
 		}
 	}
