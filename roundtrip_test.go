@@ -1,0 +1,122 @@
+// Copyright 2026 The go-sieve Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package sieve
+
+import "testing"
+
+// canonicalScripts are byte-exact canonical outputs of the encoder. Each
+// must satisfy Encode(Parse(s)) == s.
+var canonicalScripts = []string{
+	"keep;\n",
+	"stop;\n",
+	"discard;\n",
+	"require \"fileinto\";\nfileinto \"Junk\";\n",
+	"require [\"copy\", \"fileinto\"];\nfileinto :copy \"Archive\";\n",
+	"require \"imap4flags\";\nsetflag \"\\\\Seen\";\n",
+	"require \"imap4flags\";\naddflag [\"\\\\Seen\", \"\\\\Flagged\"];\n",
+	"redirect \"a@b.example\";\n",
+	"require \"copy\";\nredirect :copy \"a@b.example\";\n",
+	"require \"fileinto\";\nif header :contains \"subject\" \"[SPAM]\" {\n\tfileinto \"Junk\";\n\tstop;\n}\n",
+	"if size :over 1048576 {\n\tdiscard;\n}\n",
+	"if exists [\"to\", \"cc\"] {\n\tkeep;\n}\n",
+	"if address :domain \"from\" \"example.com\" {\n\tkeep;\n}\n",
+	"require \"envelope\";\nif envelope :localpart \"from\" \"postmaster\" {\n\tdiscard;\n}\n",
+	"require \"body\";\nif body :raw :contains \"viagra\" {\n\tdiscard;\n}\n",
+	"require \"body\";\nif body :content [\"text/plain\", \"text/html\"] :contains \"x\" {\n\tkeep;\n}\n",
+	"if anyof (address :localpart \"from\" \"root\", not true) {\n\tdiscard;\n}\n",
+	"if allof (header :contains \"subject\" \"hi\", header \"from\" \"a@b\") {\n\tkeep;\n}\n",
+	"if header :comparator \"i;octet\" \"x-flag\" \"YES\" {\n\tkeep;\n}\n",
+	"require \"fileinto\";\nif header :contains \"subject\" \"a\" {\n\tfileinto \"A\";\n} elsif header :contains \"subject\" \"b\" {\n\tfileinto \"B\";\n} else {\n\tkeep;\n}\n",
+	// Unknown command/test carriers round-trip verbatim.
+	"require \"vacation\";\nvacation \"out of office\";\n",
+	"if spamtest :value \"ge\" \"5\" {\n\tdiscard;\n}\n",
+	// Multi-line text: block with dot-stuffing.
+	"redirect text:\nline one\n..dotted\nline three\n.\n;\n",
+}
+
+func TestRoundTripCanonical(t *testing.T) {
+	for _, src := range canonicalScripts {
+		t.Run(src, func(t *testing.T) {
+			s, err := Parse([]byte(src))
+			if err != nil {
+				t.Fatalf("Parse(%q): %v", src, err)
+			}
+			out, err := s.Encode()
+			if err != nil {
+				t.Fatalf("Encode: %v", err)
+			}
+			if string(out) != src {
+				t.Errorf("round trip mismatch\n got: %q\nwant: %q", out, src)
+			}
+		})
+	}
+}
+
+func TestParseEncodeIsFixedPoint(t *testing.T) {
+	// Encoding any AST and parsing it back must re-encode identically.
+	scripts := []*Script{
+		{Commands: []Command{&Keep{}}},
+		{Commands: []Command{&FileInto{Mailbox: "Inbox/Lists", Copy: true}}},
+		{Commands: []Command{&If{
+			Test: &AllOf{Tests: []Test{
+				&HeaderTest{MatchType: MatchMatches, Headers: []string{"from"}, Keys: []string{"*@spam.example"}},
+				&SizeTest{Over: false, Limit: 500},
+			}},
+			Then: []Command{&Discard{}},
+		}}},
+	}
+	for i, s := range scripts {
+		first, err := s.Encode()
+		if err != nil {
+			t.Fatalf("script %d Encode: %v", i, err)
+		}
+		reparsed, err := Parse(first)
+		if err != nil {
+			t.Fatalf("script %d Parse(%q): %v", i, first, err)
+		}
+		second, err := reparsed.Encode()
+		if err != nil {
+			t.Fatalf("script %d re-Encode: %v", i, err)
+		}
+		if string(first) != string(second) {
+			t.Errorf("script %d not a fixed point\n first: %q\nsecond: %q", i, first, second)
+		}
+	}
+}
+
+func TestParseToleratesCommentsAndWhitespace(t *testing.T) {
+	src := `# leading comment
+require   "fileinto" ;   /* inline */
+if header :contains "subject" "hi" {
+    fileinto "X" ;  # trailing
+}
+`
+	s, err := Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want := "require \"fileinto\";\nif header :contains \"subject\" \"hi\" {\n\tfileinto \"X\";\n}\n"
+	out, _ := s.Encode()
+	if string(out) != want {
+		t.Errorf("canonicalized form\n got: %q\nwant: %q", out, want)
+	}
+}
+
+func TestParseErrors(t *testing.T) {
+	bad := []string{
+		"keep",             // missing ;
+		"if {",             // missing test
+		"fileinto;",        // missing mailbox
+		`require "x"`,      // missing ;
+		"}",                // stray brace
+		"if true { keep; ", // unterminated block
+	}
+	for _, src := range bad {
+		if _, err := Parse([]byte(src)); err == nil {
+			t.Errorf("Parse(%q) = nil error, want a ParseError", src)
+		} else if _, ok := err.(*ParseError); !ok {
+			t.Errorf("Parse(%q) error = %T, want *ParseError", src, err)
+		}
+	}
+}
