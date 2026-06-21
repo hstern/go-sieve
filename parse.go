@@ -176,6 +176,12 @@ func (p *parser) parseCommand() (Command, error) {
 		return &Keep{}, p.expectSemicolon()
 	case "discard":
 		return &Discard{}, p.expectSemicolon()
+	case "error":
+		msg, err := p.parseSingleString()
+		if err != nil {
+			return nil, err
+		}
+		return &Error{Message: msg}, p.expectSemicolon()
 	case "if":
 		return p.parseIf()
 	case "elsif":
@@ -265,11 +271,15 @@ func (p *parser) parseBlock() ([]Command, error) {
 func (p *parser) parseFileInto() (Command, error) {
 	f := &FileInto{}
 	for p.peek().kind == tTag {
-		if p.peek().text != "copy" {
+		switch p.peek().text {
+		case "copy":
+			f.Copy = true
+		case "create":
+			f.Create = true
+		default:
 			return nil, errUnknownTag
 		}
 		p.next()
-		f.Copy = true
 	}
 	mbox, err := p.parseSingleString()
 	if err != nil {
@@ -402,9 +412,138 @@ func (p *parser) parseTest() (Test, error) {
 		return p.knownTestOrRaw("envelope", p.parseEnvelopeTest)
 	case "body":
 		return p.knownTestOrRaw("body", p.parseBodyTest)
+	case "mailboxexists":
+		list, err := p.parseStringList()
+		if err != nil {
+			return nil, err
+		}
+		return &MailboxExistsTest{Mailboxes: list}, nil
+	case "spamtest":
+		return p.knownTestOrRaw("spamtest", p.parseSpamTest)
+	case "virustest":
+		return p.knownTestOrRaw("virustest", p.parseVirusTest)
+	case "environment":
+		return p.knownTestOrRaw("environment", p.parseEnvironmentTest)
+	case "duplicate":
+		return p.knownTestOrRaw("duplicate", p.parseDuplicateTest)
+	case "ihave":
+		list, err := p.parseStringList()
+		if err != nil {
+			return nil, err
+		}
+		return &IHaveTest{Capabilities: list}, nil
 	default:
 		return p.parseRawTest(t.text)
 	}
+}
+
+func (p *parser) parseSpamTest() (Test, error) {
+	st := &SpamTest{}
+	for p.peek().kind == tTag {
+		if p.peek().text == "percent" {
+			p.next()
+			st.Percent = true
+			continue
+		}
+		tag := p.next()
+		ok, err := p.applyMatchTag(tag, &st.MatchType, &st.Relational, &st.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	val, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	st.Value = val
+	return st, nil
+}
+
+func (p *parser) parseVirusTest() (Test, error) {
+	vt := &VirusTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		ok, err := p.applyMatchTag(tag, &vt.MatchType, &vt.Relational, &vt.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	val, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	vt.Value = val
+	return vt, nil
+}
+
+func (p *parser) parseEnvironmentTest() (Test, error) {
+	et := &EnvironmentTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		ok, err := p.applyMatchTag(tag, &et.MatchType, &et.Relational, &et.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	name, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	et.Name = name
+	keys, err := p.parseStringList()
+	if err != nil {
+		return nil, err
+	}
+	et.Keys = keys
+	return et, nil
+}
+
+func (p *parser) parseDuplicateTest() (Test, error) {
+	dt := &DuplicateTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		switch tag.text {
+		case "handle":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			dt.Handle = s
+		case "header":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			dt.Header = s
+		case "uniqueid":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			dt.UniqueID = s
+		case "seconds":
+			n := p.next()
+			if n.kind != tNumber {
+				return nil, p.errAt(n, "duplicate :seconds requires a number")
+			}
+			dt.Seconds = n.num
+			dt.HasSeconds = true
+		case "last":
+			dt.Last = true
+		default:
+			return nil, errUnknownTag
+		}
+	}
+	return dt, nil
 }
 
 // knownTestOrRaw is the test-side counterpart of knownCommandOrRaw: on an

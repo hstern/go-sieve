@@ -30,11 +30,21 @@ var canonicalScripts = []string{
 	"require \"fileinto\";\nif header :contains \"subject\" \"a\" {\n\tfileinto \"A\";\n} elsif header :contains \"subject\" \"b\" {\n\tfileinto \"B\";\n} else {\n\tkeep;\n}\n",
 	// Unknown command/test carriers round-trip verbatim.
 	"require \"vacation\";\nvacation \"out of office\";\n",
-	"if spamtest :value \"ge\" \"5\" {\n\tdiscard;\n}\n",
-	// Unknown tag on a known command falls back to a carrier.
-	"fileinto :create \"Archive\";\n",
 	// Unmodelled control command taking a test argument before its block.
 	"mycontrol true {\n\tkeep;\n}\n",
+	// mailbox (RFC 5490): :create and mailboxexists.
+	"require [\"fileinto\", \"mailbox\"];\nfileinto :create \"Archive\";\n",
+	"require [\"fileinto\", \"mailbox\"];\nif mailboxexists \"Archive\" {\n\tfileinto \"Archive\";\n}\n",
+	// spamtest/virustest (RFC 5235).
+	"require [\"relational\", \"spamtest\"];\nif spamtest :value \"ge\" \"5\" {\n\tdiscard;\n}\n",
+	"require \"spamtestplus\";\nif spamtest :percent \"50\" {\n\tdiscard;\n}\n",
+	"require \"virustest\";\nif virustest \"4\" {\n\tdiscard;\n}\n",
+	// environment (RFC 5183).
+	"require \"environment\";\nif environment :contains \"remote-host\" \"example.com\" {\n\tkeep;\n}\n",
+	// duplicate (RFC 7352).
+	"require \"duplicate\";\nif duplicate :handle \"notify\" :seconds 3600 {\n\tdiscard;\n}\n",
+	// ihave / error (RFC 5463).
+	"require \"ihave\";\nif not ihave \"vacation\" {\n\terror \"vacation not supported\";\n}\n",
 	// relational (RFC 5231): :count / :value derive "relational".
 	"require \"relational\";\nif header :count \"ge\" \"received\" \"3\" {\n\tdiscard;\n}\n",
 	"require [\"body\", \"relational\"];\nif body :value \"gt\" \"5\" {\n\tkeep;\n}\n",
@@ -115,13 +125,13 @@ if header :contains "subject" "hi" {
 }
 
 func TestCarrierFallbacks(t *testing.T) {
-	// Unknown tag on a known command -> *RawCommand, not a *FileInto.
-	s, err := Parse([]byte(`fileinto :create "Archive";`))
+	// A genuinely unknown tag on a known command -> *RawCommand.
+	s, err := Parse([]byte(`fileinto :weird "Archive";`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rc, ok := s.Commands[0].(*RawCommand); !ok {
-		t.Errorf("fileinto :create => %T, want *RawCommand", s.Commands[0])
+		t.Errorf("fileinto :weird => %T, want *RawCommand", s.Commands[0])
 	} else if rc.Name != "fileinto" {
 		t.Errorf("carrier name = %q, want fileinto", rc.Name)
 	}

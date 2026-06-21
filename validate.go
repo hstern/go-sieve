@@ -170,8 +170,16 @@ func (d *Diagnostics) walk(cmds []Command, depth int, path string, sc *capScan) 
 			if v.Copy {
 				sc.derived[capCopy] = struct{}{}
 			}
+			if v.Create {
+				sc.derived[capMailbox] = struct{}{}
+			}
 			if v.Mailbox == "" {
 				d.addWarning(cp, "fileinto has an empty mailbox")
+			}
+		case *Error:
+			sc.derived[capIhave] = struct{}{}
+			if v.Message == "" {
+				d.addWarning(cp, "error has an empty message")
 			}
 		case *Redirect:
 			if v.Copy {
@@ -241,6 +249,31 @@ func (d *Diagnostics) walkTest(t Test, path string, sc *capScan) {
 		if len(v.Headers) == 0 {
 			d.addWarning(path, "exists test has an empty header list")
 		}
+	case *MailboxExistsTest:
+		sc.derived[capMailbox] = struct{}{}
+		if len(v.Mailboxes) == 0 {
+			d.addWarning(path, "mailboxexists has an empty mailbox list")
+		}
+	case *SpamTest:
+		if v.Percent {
+			sc.derived[capSpamTestPlus] = struct{}{}
+		} else {
+			sc.derived[capSpamTest] = struct{}{}
+		}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
+	case *VirusTest:
+		sc.derived[capVirusTest] = struct{}{}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
+	case *EnvironmentTest:
+		sc.derived[capEnvironment] = struct{}{}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
+	case *DuplicateTest:
+		sc.derived[capDuplicate] = struct{}{}
+	case *IHaveTest:
+		sc.derived[capIhave] = struct{}{}
 	case *AllOf:
 		if len(v.Tests) == 0 {
 			d.addWarning(path, "allof has no tests (always true)")
