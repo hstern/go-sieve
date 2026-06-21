@@ -77,6 +77,16 @@ func (e *encoder) writeIndent() {
 func (e *encoder) encodeCommand(c Command) error {
 	e.writeIndent()
 	switch v := c.(type) {
+	case *Comment:
+		if v.Bracket {
+			e.b.WriteString("/*")
+			e.b.WriteString(v.Text)
+			e.b.WriteString("*/\n")
+		} else {
+			e.b.WriteByte('#')
+			e.b.WriteString(v.Text)
+			e.b.WriteByte('\n')
+		}
 	case *Require:
 		e.b.WriteString("require ")
 		e.writeStringList(v.Capabilities)

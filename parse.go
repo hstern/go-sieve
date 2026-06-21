@@ -28,6 +28,22 @@ func (e *ParseError) Error() string {
 	return fmt.Sprintf("sieve: line %d:%d: %s", e.Line, e.Col, e.Msg)
 }
 
+// ParseOption configures [Parse].
+type ParseOption func(*parseConfig)
+
+type parseConfig struct {
+	keepComments bool
+}
+
+// KeepComments makes [Parse] preserve command-level comments as [Comment]
+// nodes (re-emitted by the encoder) instead of discarding them. Comments
+// that appear inside an expression are still dropped. Note that with the
+// automatically derived leading require, a comment that preceded the first
+// require is repositioned after it in canonical output.
+func KeepComments() ParseOption {
+	return func(c *parseConfig) { c.keepComments = true }
+}
+
 // Parse reads canonical or hand-written Sieve text into a [Script].
 // Comments and insignificant whitespace are tolerated. Commands and
 // tests this package does not model are preserved verbatim in
@@ -35,8 +51,14 @@ func (e *ParseError) Error() string {
 // unmodelled extension still round-trips. Parse does not enforce the
 // require-before-use rule or other structural MUSTs — call
 // [Script.Validate] for that.
-func Parse(b []byte) (*Script, error) {
-	toks, err := lex(string(b))
+//
+// By default comments are discarded; pass [KeepComments] to preserve them.
+func Parse(b []byte, opts ...ParseOption) (*Script, error) {
+	var cfg parseConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	toks, err := lex(string(b), cfg.keepComments)
 	if err != nil {
 		return nil, err
 	}
@@ -55,19 +77,31 @@ type parser struct {
 	pos  int
 }
 
+// peek and next transparently skip comment tokens (present only when
+// parsing with KeepComments); the command loop drains them separately into
+// Comment nodes via the raw token slice. Skipping them here means a comment
+// inside an expression is simply ignored.
 func (p *parser) peek() token {
-	if p.pos < len(p.toks) {
-		return p.toks[p.pos]
+	i := p.pos
+	for i < len(p.toks) && p.toks[i].kind == tComment {
+		i++
+	}
+	if i < len(p.toks) {
+		return p.toks[i]
 	}
 	return token{kind: tEOF}
 }
 
 func (p *parser) next() token {
-	t := p.peek()
-	if p.pos < len(p.toks) {
+	for p.pos < len(p.toks) && p.toks[p.pos].kind == tComment {
 		p.pos++
 	}
-	return t
+	if p.pos < len(p.toks) {
+		t := p.toks[p.pos]
+		p.pos++
+		return t
+	}
+	return token{kind: tEOF}
 }
 
 func (p *parser) errAt(t token, msg string) error {
@@ -77,6 +111,13 @@ func (p *parser) errAt(t token, msg string) error {
 func (p *parser) parseCommands(inBlock bool) ([]Command, error) {
 	var cmds []Command
 	for {
+		// Drain any pending command-level comments into Comment nodes (only
+		// present when parsing with KeepComments).
+		for p.pos < len(p.toks) && p.toks[p.pos].kind == tComment {
+			ct := p.toks[p.pos]
+			p.pos++
+			cmds = append(cmds, &Comment{Text: ct.text, Bracket: ct.num == 1})
+		}
 		t := p.peek()
 		switch t.kind {
 		case tEOF:
@@ -650,6 +691,7 @@ const (
 	tRParen
 	tComma
 	tSemicolon
+	tComment // emitted only when keepComments is set
 )
 
 type token struct {
@@ -661,14 +703,15 @@ type token struct {
 }
 
 type lexer struct {
-	src  string
-	pos  int
-	line int
-	col  int
+	src          string
+	pos          int
+	line         int
+	col          int
+	keepComments bool
 }
 
-func lex(src string) ([]token, error) {
-	l := &lexer{src: src, line: 1, col: 1}
+func lex(src string, keepComments bool) ([]token, error) {
+	l := &lexer{src: src, line: 1, col: 1, keepComments: keepComments}
 	var toks []token
 	for {
 		t, err := l.next()
@@ -698,13 +741,24 @@ func (l *lexer) advance() byte {
 }
 
 func (l *lexer) next() (token, error) {
-	if err := l.skipSpaceAndComments(); err != nil {
-		return token{}, err
+	for {
+		l.skipSpace()
+		if l.eof() {
+			return token{kind: tEOF, line: l.line, col: l.col}, nil
+		}
+		if !l.atComment() {
+			break
+		}
+		tok, err := l.lexComment()
+		if err != nil {
+			return token{}, err
+		}
+		if l.keepComments {
+			return tok, nil
+		}
+		// otherwise loop and skip it
 	}
 	line, col := l.line, l.col
-	if l.eof() {
-		return token{kind: tEOF, line: line, col: col}, nil
-	}
 	if strings.HasPrefix(l.src[l.pos:], "text:") {
 		val, err := l.lexMultiline()
 		if err != nil {
@@ -763,38 +817,52 @@ func singleCharToken(c byte) (tokenKind, bool) {
 	}
 }
 
-func (l *lexer) skipSpaceAndComments() error {
+func (l *lexer) skipSpace() {
 	for !l.eof() {
-		c := l.cur()
-		switch {
-		case c == ' ' || c == '\t' || c == '\r' || c == '\n':
+		switch l.cur() {
+		case ' ', '\t', '\r', '\n':
 			l.advance()
-		case c == '#':
-			for !l.eof() && l.cur() != '\n' {
-				l.advance()
-			}
-		case c == '/' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '*':
-			line, col := l.line, l.col
-			l.advance()
-			l.advance()
-			closed := false
-			for !l.eof() {
-				if l.cur() == '*' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '/' {
-					l.advance()
-					l.advance()
-					closed = true
-					break
-				}
-				l.advance()
-			}
-			if !closed {
-				return &ParseError{Line: line, Col: col, Msg: "unterminated /* */ comment"}
-			}
 		default:
-			return nil
+			return
 		}
 	}
-	return nil
+}
+
+func (l *lexer) atComment() bool {
+	if l.eof() {
+		return false
+	}
+	c := l.cur()
+	return c == '#' || (c == '/' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '*')
+}
+
+// lexComment consumes a hash (#) or bracket (/* */) comment and returns it
+// as a tComment token. The token text is the body without delimiters; num
+// is 1 for a bracket comment, 0 for a hash comment.
+func (l *lexer) lexComment() (token, error) {
+	line, col := l.line, l.col
+	if l.cur() == '#' {
+		l.advance() // consume '#'
+		start := l.pos
+		for !l.eof() && l.cur() != '\n' {
+			l.advance()
+		}
+		text := strings.TrimSuffix(l.src[start:l.pos], "\r")
+		return token{kind: tComment, text: text, num: 0, line: line, col: col}, nil
+	}
+	l.advance() // consume '/'
+	l.advance() // consume '*'
+	start := l.pos
+	for !l.eof() {
+		if l.cur() == '*' && l.pos+1 < len(l.src) && l.src[l.pos+1] == '/' {
+			text := l.src[start:l.pos]
+			l.advance() // consume '*'
+			l.advance() // consume '/'
+			return token{kind: tComment, text: text, num: 1, line: line, col: col}, nil
+		}
+		l.advance()
+	}
+	return token{}, &ParseError{Line: line, Col: col, Msg: "unterminated /* */ comment"}
 }
 
 func (l *lexer) lexQuoted() (string, error) {

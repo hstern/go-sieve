@@ -110,6 +110,17 @@ type RawCommand struct {
 	HasBlock bool
 }
 
+// Comment is a command-level comment, preserved only when a script is
+// parsed with [KeepComments]. Text is the comment body without its
+// delimiters; Bracket selects /* ... */ framing over the default
+// # ... line comment. Comments that appear inside an expression (between
+// a test's arguments, say) are not modelled and are dropped on parse.
+type Comment struct {
+	Text    string
+	Bracket bool
+}
+
+func (*Comment) isCommand()    {}
 func (*Require) isCommand()    {}
 func (*Stop) isCommand()       {}
 func (*If) isCommand()         {}
