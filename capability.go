@@ -20,6 +20,8 @@ const (
 	capVirusTest    = "virustest"
 	capEnvironment  = "environment"
 	capDuplicate    = "duplicate"
+	capDate         = "date"
+	capIndex        = "index"
 )
 
 // Capabilities returns the sorted, de-duplicated set of extension
@@ -91,13 +93,17 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 func collectTestCaps(t Test, set map[string]struct{}) {
 	switch v := t.(type) {
 	case *HeaderTest:
-		addCap(set, comparatorCap(v.Comparator), matchCap(v.MatchType))
+		addCap(set, comparatorCap(v.Comparator), matchCap(v.MatchType), indexCap(v.Index))
 	case *AddressTest:
-		addCap(set, comparatorCap(v.Comparator), matchCap(v.MatchType), addressPartCap(v.AddressPart))
+		addCap(set, comparatorCap(v.Comparator), matchCap(v.MatchType), addressPartCap(v.AddressPart), indexCap(v.Index))
 	case *EnvelopeTest:
 		addCap(set, capEnvelope, comparatorCap(v.Comparator), matchCap(v.MatchType), addressPartCap(v.AddressPart))
 	case *BodyTest:
 		addCap(set, capBody, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *DateTest:
+		addCap(set, capDate, comparatorCap(v.Comparator), matchCap(v.MatchType), indexCap(v.Index))
+	case *CurrentDateTest:
+		addCap(set, capDate, comparatorCap(v.Comparator), matchCap(v.MatchType))
 	case *MailboxExistsTest:
 		addCap(set, capMailbox)
 	case *SpamTest:
@@ -141,6 +147,15 @@ func matchCap(m MatchType) string {
 	default:
 		return ""
 	}
+}
+
+// indexCap returns "index" when a :index N argument is set (RFC 5260
+// index), or "" otherwise.
+func indexCap(index int) string {
+	if index > 0 {
+		return capIndex
+	}
+	return ""
 }
 
 // addressPartCap returns the capability an address-part requires, or "" for

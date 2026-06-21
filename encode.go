@@ -233,6 +233,7 @@ func (e *encoder) encodeTest(t Test) error {
 		e.b.WriteString("false")
 	case *HeaderTest:
 		e.b.WriteString("header")
+		e.writeIndex(v.Index, v.IndexLast)
 		e.writeComparator(v.Comparator)
 		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
@@ -241,11 +242,33 @@ func (e *encoder) encodeTest(t Test) error {
 		e.writeStringList(v.Keys)
 	case *AddressTest:
 		e.b.WriteString("address")
+		e.writeIndex(v.Index, v.IndexLast)
 		e.writeComparator(v.Comparator)
 		e.writeAddressPart(v.AddressPart)
 		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Headers)
+		e.b.WriteByte(' ')
+		e.writeStringList(v.Keys)
+	case *DateTest:
+		e.b.WriteString("date")
+		e.writeIndex(v.Index, v.IndexLast)
+		e.writeZone(v.Zone, v.OriginalZone)
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Header))
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.DatePart))
+		e.b.WriteByte(' ')
+		e.writeStringList(v.Keys)
+	case *CurrentDateTest:
+		e.b.WriteString("currentdate")
+		e.writeZone(v.Zone, false)
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.DatePart))
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Keys)
 	case *EnvelopeTest:
@@ -369,6 +392,25 @@ func (e *encoder) encodeArg(a Argument) {
 	case TagArg:
 		e.b.WriteByte(':')
 		e.b.WriteString(v.Name)
+	}
+}
+
+func (e *encoder) writeIndex(index int, last bool) {
+	if index > 0 {
+		e.b.WriteString(" :index ")
+		e.b.WriteString(strconv.Itoa(index))
+		if last {
+			e.b.WriteString(" :last")
+		}
+	}
+}
+
+func (e *encoder) writeZone(zone string, original bool) {
+	if zone != "" {
+		e.b.WriteString(" :zone ")
+		e.b.WriteString(quote(zone))
+	} else if original {
+		e.b.WriteString(" :originalzone")
 	}
 }
 

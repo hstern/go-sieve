@@ -144,11 +144,14 @@ func (*RawCommand) isCommand() {}
 
 // ---- Tests (RFC 5228 §5) ----
 
-// HeaderTest matches header field values (§5.7).
+// HeaderTest matches header field values (§5.7). Index/IndexLast select a
+// single occurrence among repeated headers (RFC 5260 index).
 type HeaderTest struct {
 	MatchType  MatchType
 	Relational string // relational operator for :count/:value (RFC 5231)
 	Comparator string // "" means the default i;ascii-casemap
+	Index      int    // :index N, 0 = unset (require "index")
+	IndexLast  bool   // :last
 	Headers    []string
 	Keys       []string
 }
@@ -159,6 +162,8 @@ type AddressTest struct {
 	Relational  string // relational operator for :count/:value (RFC 5231)
 	AddressPart AddressPart
 	Comparator  string
+	Index       int  // :index N, 0 = unset (require "index")
+	IndexLast   bool // :last
 	Headers     []string
 	Keys        []string
 }
@@ -193,6 +198,31 @@ type BodyTest struct {
 	Relational   string // relational operator for :count/:value (RFC 5231)
 	Comparator   string
 	Keys         []string
+}
+
+// DateTest matches a date in a header field (RFC 5260 date). DatePart is
+// e.g. "year", "month", "day", "date", "time", "hour", "weekday".
+type DateTest struct {
+	Index        int    // :index N, 0 = unset (require "index")
+	IndexLast    bool   // :last
+	Zone         string // :zone "+0100", "" = unset
+	OriginalZone bool   // :originalzone
+	MatchType    MatchType
+	Relational   string
+	Comparator   string
+	Header       string
+	DatePart     string
+	Keys         []string
+}
+
+// CurrentDateTest matches the current date (RFC 5260 date).
+type CurrentDateTest struct {
+	Zone       string // :zone "+0100", "" = unset
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	DatePart   string
+	Keys       []string
 }
 
 // MailboxExistsTest is true if every named mailbox exists (RFC 5490
@@ -281,6 +311,8 @@ func (*EnvelopeTest) isTest()      {}
 func (*ExistsTest) isTest()        {}
 func (*SizeTest) isTest()          {}
 func (*BodyTest) isTest()          {}
+func (*DateTest) isTest()          {}
+func (*CurrentDateTest) isTest()   {}
 func (*MailboxExistsTest) isTest() {}
 func (*SpamTest) isTest()          {}
 func (*VirusTest) isTest()         {}

@@ -8,6 +8,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Extensions: **date**/**currentdate** tests and the **index** (`:index`/
+  `:last`) modifier on header/address/date (RFC 5260) — typed nodes
+  deriving `date`/`index`.
+
 - Extensions: **mailbox** (`fileinto :create`, `mailboxexists`, RFC 5490),
   **spamtest**/**virustest** (RFC 5235), **environment** (RFC 5183),
   **duplicate** (RFC 7352), and **ihave**/**error** (RFC 5463) — new typed

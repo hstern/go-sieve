@@ -45,6 +45,12 @@ var canonicalScripts = []string{
 	"require \"duplicate\";\nif duplicate :handle \"notify\" :seconds 3600 {\n\tdiscard;\n}\n",
 	// ihave / error (RFC 5463).
 	"require \"ihave\";\nif not ihave \"vacation\" {\n\terror \"vacation not supported\";\n}\n",
+	// date / index (RFC 5260).
+	"require \"date\";\nif date \"received\" \"weekday\" \"1\" {\n\tkeep;\n}\n",
+	"require [\"date\", \"relational\"];\nif currentdate :value \"ge\" \"date\" \"2026-06-21\" {\n\tdiscard;\n}\n",
+	"require [\"fileinto\", \"index\"];\nif header :index 2 \"received\" \"x\" {\n\tfileinto \"X\";\n}\n",
+	"require \"index\";\nif address :index 1 :last \"from\" \"x\" {\n\tkeep;\n}\n",
+	"require [\"date\", \"index\"];\nif date :index 1 :zone \"+0100\" \"received\" \"hour\" \"09\" {\n\tkeep;\n}\n",
 	// relational (RFC 5231): :count / :value derive "relational".
 	"require \"relational\";\nif header :count \"ge\" \"received\" \"3\" {\n\tdiscard;\n}\n",
 	"require [\"body\", \"relational\"];\nif body :value \"gt\" \"5\" {\n\tkeep;\n}\n",
