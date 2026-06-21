@@ -6,3 +6,6 @@ coverage.*
 # Editor / OS noise
 .DS_Store
 *.swp
+
+# Go fuzz coverage cache (regenerated locally; commit crashers explicitly if any)
+/testdata/fuzz/
