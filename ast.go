@@ -241,6 +241,7 @@ func (TagArg) isArgument()    {}
 // the default and is omitted from canonical output.
 type MatchType int
 
+// Match-type tags (RFC 5228 §2.7.1).
 const (
 	MatchIs       MatchType = iota // :is (default)
 	MatchContains                  // :contains
@@ -262,6 +263,7 @@ func (m MatchType) tag() string {
 // AddressAll is the default and is omitted from canonical output.
 type AddressPart int
 
+// Address-part tags (RFC 5228 §2.7.2).
 const (
 	AddressAll       AddressPart = iota // :all (default)
 	AddressLocalPart                    // :localpart
@@ -283,6 +285,7 @@ func (a AddressPart) tag() string {
 // value BodyText is the default and is omitted from canonical output.
 type BodyTransform int
 
+// Body-transform tags (RFC 5173).
 const (
 	BodyText    BodyTransform = iota // :text (default)
 	BodyRaw                          // :raw
