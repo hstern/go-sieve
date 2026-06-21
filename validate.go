@@ -225,12 +225,23 @@ func (d *Diagnostics) walkTest(t Test, path string, sc *capScan) {
 	case *HeaderTest:
 		d.derive(sc, comparatorCap(v.Comparator))
 		d.derive(sc, matchCap(v.MatchType))
+		d.derive(sc, indexCap(v.Index))
 		d.checkComparison(path, v.Headers, v.Keys, v.MatchType)
 	case *AddressTest:
 		d.derive(sc, comparatorCap(v.Comparator))
 		d.derive(sc, matchCap(v.MatchType))
 		d.derive(sc, addressPartCap(v.AddressPart))
+		d.derive(sc, indexCap(v.Index))
 		d.checkComparison(path, v.Headers, v.Keys, v.MatchType)
+	case *DateTest:
+		sc.derived[capDate] = struct{}{}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
+		d.derive(sc, indexCap(v.Index))
+	case *CurrentDateTest:
+		sc.derived[capDate] = struct{}{}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
 	case *EnvelopeTest:
 		sc.derived[capEnvelope] = struct{}{}
 		d.derive(sc, comparatorCap(v.Comparator))

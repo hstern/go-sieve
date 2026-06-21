@@ -432,9 +432,108 @@ func (p *parser) parseTest() (Test, error) {
 			return nil, err
 		}
 		return &IHaveTest{Capabilities: list}, nil
+	case "date":
+		return p.knownTestOrRaw("date", p.parseDateTest)
+	case "currentdate":
+		return p.knownTestOrRaw("currentdate", p.parseCurrentDateTest)
 	default:
 		return p.parseRawTest(t.text)
 	}
+}
+
+// applyIndexTag handles the :index/:last tags of the index extension
+// (RFC 5260). It reports whether the tag was recognised.
+func (p *parser) applyIndexTag(tag token, index *int, last *bool) (bool, error) {
+	switch tag.text {
+	case "index":
+		n := p.next()
+		if n.kind != tNumber {
+			return false, p.errAt(n, ":index requires a number")
+		}
+		*index = int(n.num)
+	case "last":
+		*last = true
+	default:
+		return false, nil
+	}
+	return true, nil
+}
+
+func (p *parser) parseDateTest() (Test, error) {
+	dt := &DateTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		switch tag.text {
+		case "zone":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			dt.Zone = s
+			continue
+		case "originalzone":
+			dt.OriginalZone = true
+			continue
+		}
+		if ok, err := p.applyIndexTag(tag, &dt.Index, &dt.IndexLast); err != nil {
+			return nil, err
+		} else if ok {
+			continue
+		}
+		ok, err := p.applyMatchTag(tag, &dt.MatchType, &dt.Relational, &dt.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	header, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	datePart, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	keys, err := p.parseStringList()
+	if err != nil {
+		return nil, err
+	}
+	dt.Header, dt.DatePart, dt.Keys = header, datePart, keys
+	return dt, nil
+}
+
+func (p *parser) parseCurrentDateTest() (Test, error) {
+	dt := &CurrentDateTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		if tag.text == "zone" {
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			dt.Zone = s
+			continue
+		}
+		ok, err := p.applyMatchTag(tag, &dt.MatchType, &dt.Relational, &dt.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	datePart, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	keys, err := p.parseStringList()
+	if err != nil {
+		return nil, err
+	}
+	dt.DatePart, dt.Keys = datePart, keys
+	return dt, nil
 }
 
 func (p *parser) parseSpamTest() (Test, error) {
@@ -655,6 +754,11 @@ func (p *parser) parseHeaderTest() (Test, error) {
 	h := &HeaderTest{}
 	for p.peek().kind == tTag {
 		tag := p.next()
+		if ok, err := p.applyIndexTag(tag, &h.Index, &h.IndexLast); err != nil {
+			return nil, err
+		} else if ok {
+			continue
+		}
 		ok, err := p.applyMatchTag(tag, &h.MatchType, &h.Relational, &h.Comparator)
 		if err != nil {
 			return nil, err
@@ -680,6 +784,11 @@ func (p *parser) parseAddressTest() (Test, error) {
 	for p.peek().kind == tTag {
 		tag := p.next()
 		if applyAddressPartTag(tag, &a.AddressPart) {
+			continue
+		}
+		if ok, err := p.applyIndexTag(tag, &a.Index, &a.IndexLast); err != nil {
+			return nil, err
+		} else if ok {
 			continue
 		}
 		ok, err := p.applyMatchTag(tag, &a.MatchType, &a.Relational, &a.Comparator)
