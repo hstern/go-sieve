@@ -18,6 +18,7 @@ jobs:
         with:
           go-version: "1.26"
           check-latest: true
+          cache: false
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)
@@ -37,6 +38,7 @@ jobs:
         with:
           go-version: "1.26"
           check-latest: true
+          cache: false
       - name: test
         run: go test -race -count=1 ./...
 
@@ -48,6 +50,11 @@ jobs:
         with:
           go-version: "1.26"
           check-latest: true
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+          cache: false
+      # Build golangci-lint (v2) from source with this job's Go toolchain so
+      # its build version matches the module's go directive; the action's
+      # prebuilt binaries lag new Go releases and reject a newer go.mod.
+      - name: install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      - name: golangci-lint
+        run: golangci-lint run ./...
