@@ -3,7 +3,10 @@
 
 package sieve
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestKeepCommentsRoundTrip(t *testing.T) {
 	tests := []string{
@@ -49,18 +52,36 @@ func TestDefaultParseStripsComments(t *testing.T) {
 	}
 }
 
-func TestKeepCommentsDropsInlineComments(t *testing.T) {
-	// A comment inside an expression is not modelled and is dropped even
-	// with KeepComments; the surrounding command still parses.
+func TestKeepCommentsRetainsInlineComments(t *testing.T) {
+	// A comment inside an expression is retained (content not lost), though
+	// repositioned to the nearest command boundary on its own line.
 	src := `if header /* inline */ :contains "subject" "hi" { keep; }`
 	s, err := Parse([]byte(src), KeepComments())
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
 	out, _ := s.Encode()
-	want := "if header :contains \"subject\" \"hi\" {\n\tkeep;\n}\n"
-	if string(out) != want {
-		t.Errorf("inline comment handling\n got: %q\nwant: %q", out, want)
+	if !strings.Contains(string(out), "/* inline */") {
+		t.Errorf("inline comment content was dropped\n got: %q", out)
+	}
+	// Without KeepComments it is dropped entirely.
+	s2, _ := Parse([]byte(src))
+	out2, _ := s2.Encode()
+	if strings.Contains(string(out2), "inline") {
+		t.Errorf("default parse should drop the comment\n got: %q", out2)
+	}
+}
+
+func TestKeepCommentsLeadingBeforeRequire(t *testing.T) {
+	// A comment at the very top stays above the auto-derived require.
+	src := "# header comment\nrequire \"fileinto\";\nfileinto \"Spam\";\n"
+	s, err := Parse([]byte(src), KeepComments())
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := s.Encode()
+	if string(out) != src {
+		t.Errorf("leading comment should precede require\n got: %q\nwant: %q", out, src)
 	}
 }
 
