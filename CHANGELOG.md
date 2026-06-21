@@ -15,8 +15,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `comparator-<name>` capability, enforced by both auto-`require` and
   `Validate` (RFC 5228 §2.7.3 / RFC 4790).
 - `:matches` patterns ending in a dangling backslash escape now warn.
-- `Parse(b, KeepComments())` preserves command-level comments as
-  `Comment` nodes; the default remains comment-free.
+- `Parse(b, KeepComments())` preserves comments as `Comment` nodes; the
+  default remains comment-free. No comment content is dropped — including
+  mid-expression comments (repositioned to the nearest command boundary) —
+  and leading comments are emitted before the auto-derived `require`.
+- Example showing how a ManageSieve (RFC 5804) `CheckScript` backend maps
+  onto `Parse`/`Check` without coupling the libraries.
 
 ### Changed
 

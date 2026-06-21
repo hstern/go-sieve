@@ -41,12 +41,25 @@ type encoder struct {
 }
 
 func (e *encoder) encodeScript(s *Script) error {
+	// Emit leading comments before the derived require so a comment at the
+	// top of the script stays at the top (KeepComments mode).
+	i := 0
+	for i < len(s.Commands) {
+		c, ok := s.Commands[i].(*Comment)
+		if !ok {
+			break
+		}
+		if err := e.encodeCommand(c); err != nil {
+			return err
+		}
+		i++
+	}
 	if caps := s.Capabilities(); len(caps) > 0 {
 		e.b.WriteString("require ")
 		e.writeStringList(caps)
 		e.b.WriteString(";\n")
 	}
-	for _, c := range s.Commands {
+	for _, c := range s.Commands[i:] {
 		// Explicit Require commands are folded into the single leading
 		// require emitted above; never emit them again in the body.
 		if _, ok := c.(*Require); ok {

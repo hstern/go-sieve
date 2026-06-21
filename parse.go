@@ -35,11 +35,13 @@ type parseConfig struct {
 	keepComments bool
 }
 
-// KeepComments makes [Parse] preserve command-level comments as [Comment]
-// nodes (re-emitted by the encoder) instead of discarding them. Comments
-// that appear inside an expression are still dropped. Note that with the
-// automatically derived leading require, a comment that preceded the first
-// require is repositioned after it in canonical output.
+// KeepComments makes [Parse] preserve comments as [Comment] nodes
+// (re-emitted by the encoder) instead of discarding them. No comment
+// content is lost: a comment that appeared mid-expression is retained but
+// repositioned to the nearest command boundary on its own line — exact
+// inline placement is not preserved, since the AST is canonical rather
+// than a lossless syntax tree. Comments that lead the script are emitted
+// before the automatically derived require.
 func KeepComments() ParseOption {
 	return func(c *parseConfig) { c.keepComments = true }
 }
@@ -75,6 +77,11 @@ func Parse(b []byte, opts ...ParseOption) (*Script, error) {
 type parser struct {
 	toks []token
 	pos  int
+	// pendingComments holds comment tokens skipped mid-expression (only in
+	// KeepComments mode); the command loop drains them into Comment nodes so
+	// no comment content is lost, repositioned to the nearest command
+	// boundary.
+	pendingComments []token
 }
 
 // peek and next transparently skip comment tokens (present only when
@@ -94,6 +101,9 @@ func (p *parser) peek() token {
 
 func (p *parser) next() token {
 	for p.pos < len(p.toks) && p.toks[p.pos].kind == tComment {
+		// A comment reached here is mid-expression; keep it so the command
+		// loop can re-emit it rather than dropping it.
+		p.pendingComments = append(p.pendingComments, p.toks[p.pos])
 		p.pos++
 	}
 	if p.pos < len(p.toks) {
@@ -135,6 +145,12 @@ func (p *parser) parseCommands(inBlock bool) ([]Command, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Re-emit any comments seen mid-expression before this command so
+		// their content survives (their exact inline position does not).
+		for _, ct := range p.pendingComments {
+			cmds = append(cmds, &Comment{Text: ct.text, Bracket: ct.num == 1})
+		}
+		p.pendingComments = p.pendingComments[:0]
 		cmds = append(cmds, c)
 	}
 }
