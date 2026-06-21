@@ -6,6 +6,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-21
+
 ### Added
 
 - Extensions: **variables** (`set`, `string` test, RFC 5229) and the
@@ -66,5 +68,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Extensions: `fileinto`, `imap4flags` (RFC 5232), `copy` (RFC 3894),
   `body` (RFC 5173), `envelope`.
 
-[Unreleased]: https://github.com/hstern/go-sieve/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/hstern/go-sieve/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hstern/go-sieve/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hstern/go-sieve/releases/tag/v0.1.0
