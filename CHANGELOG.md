@@ -8,6 +8,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Extensions: **vacation** (RFC 5230), **notify**/**enotify** (`notify`,
+  `valid_notify_method`, `notify_method_capability`, RFC 5435), and
+  **editheader** (`addheader`/`deleteheader`, RFC 5293) — typed action and
+  test nodes deriving their capabilities.
+
 - Extensions: **date**/**currentdate** tests and the **index** (`:index`/
   `:last`) modifier on header/address/date (RFC 5260) — typed nodes
   deriving `date`/`index`.

@@ -182,6 +182,14 @@ func (p *parser) parseCommand() (Command, error) {
 			return nil, err
 		}
 		return &Error{Message: msg}, p.expectSemicolon()
+	case "vacation":
+		return p.knownCommandOrRaw("vacation", p.parseVacation)
+	case "notify":
+		return p.knownCommandOrRaw("notify", p.parseNotify)
+	case "addheader":
+		return p.knownCommandOrRaw("addheader", p.parseAddHeader)
+	case "deleteheader":
+		return p.knownCommandOrRaw("deleteheader", p.parseDeleteHeader)
 	case "if":
 		return p.parseIf()
 	case "elsif":
@@ -202,6 +210,150 @@ func (p *parser) parseCommand() (Command, error) {
 	default:
 		return p.parseRawCommand(t.text)
 	}
+}
+
+func (p *parser) parseVacation() (Command, error) {
+	vc := &Vacation{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		switch tag.text {
+		case "days":
+			n := p.next()
+			if n.kind != tNumber {
+				return nil, p.errAt(n, "vacation :days requires a number")
+			}
+			vc.Days = int(n.num)
+			vc.HasDays = true
+		case "subject":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			vc.Subject = s
+		case "from":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			vc.From = s
+		case "addresses":
+			list, err := p.parseStringList()
+			if err != nil {
+				return nil, err
+			}
+			vc.Addresses = list
+		case "mime":
+			vc.Mime = true
+		case "handle":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			vc.Handle = s
+		default:
+			return nil, errUnknownTag
+		}
+	}
+	reason, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	vc.Reason = reason
+	return vc, p.expectSemicolon()
+}
+
+func (p *parser) parseNotify() (Command, error) {
+	nt := &Notify{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		switch tag.text {
+		case "from":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			nt.From = s
+		case "importance":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			nt.Importance = s
+		case "options":
+			list, err := p.parseStringList()
+			if err != nil {
+				return nil, err
+			}
+			nt.Options = list
+		case "message":
+			s, err := p.parseSingleString()
+			if err != nil {
+				return nil, err
+			}
+			nt.Message = s
+		default:
+			return nil, errUnknownTag
+		}
+	}
+	method, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	nt.Method = method
+	return nt, p.expectSemicolon()
+}
+
+func (p *parser) parseAddHeader() (Command, error) {
+	ah := &AddHeader{}
+	for p.peek().kind == tTag {
+		if p.peek().text != "last" {
+			return nil, errUnknownTag
+		}
+		p.next()
+		ah.Last = true
+	}
+	name, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	value, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	ah.Name, ah.Value = name, value
+	return ah, p.expectSemicolon()
+}
+
+func (p *parser) parseDeleteHeader() (Command, error) {
+	dh := &DeleteHeader{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		if ok, err := p.applyIndexTag(tag, &dh.Index, &dh.IndexLast); err != nil {
+			return nil, err
+		} else if ok {
+			continue
+		}
+		ok, err := p.applyMatchTag(tag, &dh.MatchType, &dh.Relational, &dh.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	name, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	dh.Name = name
+	if k := p.peek().kind; k == tString || k == tLBracket {
+		keys, err := p.parseStringList()
+		if err != nil {
+			return nil, err
+		}
+		dh.Keys = keys
+	}
+	return dh, p.expectSemicolon()
 }
 
 // knownCommandOrRaw runs a modelled-command parser, but if it reports an
@@ -436,9 +588,45 @@ func (p *parser) parseTest() (Test, error) {
 		return p.knownTestOrRaw("date", p.parseDateTest)
 	case "currentdate":
 		return p.knownTestOrRaw("currentdate", p.parseCurrentDateTest)
+	case "valid_notify_method":
+		list, err := p.parseStringList()
+		if err != nil {
+			return nil, err
+		}
+		return &ValidNotifyMethodTest{URIs: list}, nil
+	case "notify_method_capability":
+		return p.knownTestOrRaw("notify_method_capability", p.parseNotifyMethodCapabilityTest)
 	default:
 		return p.parseRawTest(t.text)
 	}
+}
+
+func (p *parser) parseNotifyMethodCapabilityTest() (Test, error) {
+	nt := &NotifyMethodCapabilityTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		ok, err := p.applyMatchTag(tag, &nt.MatchType, &nt.Relational, &nt.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	uri, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	capName, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	keys, err := p.parseStringList()
+	if err != nil {
+		return nil, err
+	}
+	nt.URI, nt.Capability, nt.Keys = uri, capName, keys
+	return nt, nil
 }
 
 // applyIndexTag handles the :index/:last tags of the index extension

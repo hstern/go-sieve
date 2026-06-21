@@ -70,16 +70,16 @@ func TestValidateNestedRequire(t *testing.T) {
 }
 
 func TestCheckWarnsOnCarrier(t *testing.T) {
-	s, err := Parse([]byte("require \"vacation\";\nvacation \"away\";\n"))
+	s, err := Parse([]byte("require \"reject\";\nreject \"no thanks\";\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	d := s.Check()
 	if d.HasErrors() {
-		t.Errorf("unmodelled vacation should not be a fatal error: %v", d.Errors)
+		t.Errorf("unmodelled reject should not be a fatal error: %v", d.Errors)
 	}
 	if len(d.Warnings) == 0 {
-		t.Error("want a warning that vacation is unmodelled")
+		t.Error("want a warning that reject is unmodelled")
 	}
 }
 

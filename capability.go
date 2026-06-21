@@ -22,6 +22,9 @@ const (
 	capDuplicate    = "duplicate"
 	capDate         = "date"
 	capIndex        = "index"
+	capVacation     = "vacation"
+	capEnotify      = "enotify"
+	capEditHeader   = "editheader"
 )
 
 // Capabilities returns the sorted, de-duplicated set of extension
@@ -69,6 +72,16 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 			addCap(set, capImap4Flags)
 		case *Error:
 			addCap(set, capIhave)
+		case *Vacation:
+			addCap(set, capVacation)
+		case *Notify:
+			addCap(set, capEnotify)
+		case *AddHeader:
+			addCap(set, capEditHeader)
+		case *DeleteHeader:
+			// deleteheader's own :index/:last are part of editheader (RFC 5293),
+			// not the index extension, so no "index" capability here.
+			addCap(set, capEditHeader, comparatorCap(v.Comparator), matchCap(v.MatchType))
 		case *If:
 			collectTestCaps(v.Test, set)
 			collectCommandCaps(v.Then, set)
@@ -104,6 +117,10 @@ func collectTestCaps(t Test, set map[string]struct{}) {
 		addCap(set, capDate, comparatorCap(v.Comparator), matchCap(v.MatchType), indexCap(v.Index))
 	case *CurrentDateTest:
 		addCap(set, capDate, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *ValidNotifyMethodTest:
+		addCap(set, capEnotify)
+	case *NotifyMethodCapabilityTest:
+		addCap(set, capEnotify, comparatorCap(v.Comparator), matchCap(v.MatchType))
 	case *MailboxExistsTest:
 		addCap(set, capMailbox)
 	case *SpamTest:
