@@ -125,6 +125,59 @@ func (e *encoder) encodeCommand(c Command) error {
 		e.b.WriteString("error ")
 		e.b.WriteString(quote(v.Message))
 		e.b.WriteString(";\n")
+	case *Vacation:
+		e.b.WriteString("vacation")
+		if v.HasDays {
+			e.b.WriteString(" :days ")
+			e.b.WriteString(strconv.Itoa(v.Days))
+		}
+		e.writeOptString(" :subject ", v.Subject)
+		e.writeOptString(" :from ", v.From)
+		if len(v.Addresses) > 0 {
+			e.b.WriteString(" :addresses ")
+			e.writeStringList(v.Addresses)
+		}
+		if v.Mime {
+			e.b.WriteString(" :mime")
+		}
+		e.writeOptString(" :handle ", v.Handle)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Reason))
+		e.b.WriteString(";\n")
+	case *Notify:
+		e.b.WriteString("notify")
+		e.writeOptString(" :from ", v.From)
+		e.writeOptString(" :importance ", v.Importance)
+		if len(v.Options) > 0 {
+			e.b.WriteString(" :options ")
+			e.writeStringList(v.Options)
+		}
+		e.writeOptString(" :message ", v.Message)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Method))
+		e.b.WriteString(";\n")
+	case *AddHeader:
+		e.b.WriteString("addheader")
+		if v.Last {
+			e.b.WriteString(" :last")
+		}
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Name))
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Value))
+		e.b.WriteString(";\n")
+	case *DeleteHeader:
+		e.b.WriteString("deleteheader")
+		e.writeIndex(v.Index, v.IndexLast)
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Name))
+		if len(v.Keys) > 0 {
+			e.b.WriteByte(' ')
+			e.writeStringList(v.Keys)
+		}
+		e.b.WriteString(";\n")
 	case *Redirect:
 		e.b.WriteString("redirect")
 		if v.Copy {
@@ -298,6 +351,19 @@ func (e *encoder) encodeTest(t Test) error {
 		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Keys)
+	case *ValidNotifyMethodTest:
+		e.b.WriteString("valid_notify_method ")
+		e.writeStringList(v.URIs)
+	case *NotifyMethodCapabilityTest:
+		e.b.WriteString("notify_method_capability")
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.URI))
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Capability))
+		e.b.WriteByte(' ')
+		e.writeStringList(v.Keys)
 	case *MailboxExistsTest:
 		e.b.WriteString("mailboxexists ")
 		e.writeStringList(v.Mailboxes)
@@ -392,6 +458,14 @@ func (e *encoder) encodeArg(a Argument) {
 	case TagArg:
 		e.b.WriteByte(':')
 		e.b.WriteString(v.Name)
+	}
+}
+
+// writeOptString emits " tag <quoted value>" when value is non-empty.
+func (e *encoder) writeOptString(tag, value string) {
+	if value != "" {
+		e.b.WriteString(tag)
+		e.b.WriteString(quote(value))
 	}
 }
 

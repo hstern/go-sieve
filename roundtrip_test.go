@@ -28,8 +28,8 @@ var canonicalScripts = []string{
 	"if allof (header :contains \"subject\" \"hi\", header \"from\" \"a@b\") {\n\tkeep;\n}\n",
 	"if header :comparator \"i;octet\" \"x-flag\" \"YES\" {\n\tkeep;\n}\n",
 	"require \"fileinto\";\nif header :contains \"subject\" \"a\" {\n\tfileinto \"A\";\n} elsif header :contains \"subject\" \"b\" {\n\tfileinto \"B\";\n} else {\n\tkeep;\n}\n",
-	// Unknown command/test carriers round-trip verbatim.
-	"require \"vacation\";\nvacation \"out of office\";\n",
+	// Unmodelled command preserved as a carrier (reject is not modelled).
+	"require \"reject\";\nreject \"not accepted\";\n",
 	// Unmodelled control command taking a test argument before its block.
 	"mycontrol true {\n\tkeep;\n}\n",
 	// mailbox (RFC 5490): :create and mailboxexists.
@@ -45,6 +45,15 @@ var canonicalScripts = []string{
 	"require \"duplicate\";\nif duplicate :handle \"notify\" :seconds 3600 {\n\tdiscard;\n}\n",
 	// ihave / error (RFC 5463).
 	"require \"ihave\";\nif not ihave \"vacation\" {\n\terror \"vacation not supported\";\n}\n",
+	// vacation (RFC 5230).
+	"require \"vacation\";\nvacation :days 7 :subject \"Away\" \"I am out of office.\";\n",
+	"require \"vacation\";\nvacation \"out of office\";\n",
+	// notify / enotify (RFC 5435).
+	"require \"enotify\";\nnotify :importance \"1\" \"mailto:admin@example.com\";\n",
+	"require \"enotify\";\nif valid_notify_method \"mailto:x@example.com\" {\n\tstop;\n}\n",
+	// editheader (RFC 5293).
+	"require \"editheader\";\naddheader :last \"X-Filtered\" \"yes\";\n",
+	"require \"editheader\";\ndeleteheader :index 2 :contains \"X-Spam-Flag\" \"YES\";\n",
 	// date / index (RFC 5260).
 	"require \"date\";\nif date \"received\" \"weekday\" \"1\" {\n\tkeep;\n}\n",
 	"require [\"date\", \"relational\"];\nif currentdate :value \"ge\" \"date\" \"2026-06-21\" {\n\tdiscard;\n}\n",

@@ -181,6 +181,16 @@ func (d *Diagnostics) walk(cmds []Command, depth int, path string, sc *capScan) 
 			if v.Message == "" {
 				d.addWarning(cp, "error has an empty message")
 			}
+		case *Vacation:
+			sc.derived[capVacation] = struct{}{}
+		case *Notify:
+			sc.derived[capEnotify] = struct{}{}
+		case *AddHeader:
+			sc.derived[capEditHeader] = struct{}{}
+		case *DeleteHeader:
+			sc.derived[capEditHeader] = struct{}{}
+			d.derive(sc, comparatorCap(v.Comparator))
+			d.derive(sc, matchCap(v.MatchType))
 		case *Redirect:
 			if v.Copy {
 				sc.derived[capCopy] = struct{}{}
@@ -260,6 +270,12 @@ func (d *Diagnostics) walkTest(t Test, path string, sc *capScan) {
 		if len(v.Headers) == 0 {
 			d.addWarning(path, "exists test has an empty header list")
 		}
+	case *ValidNotifyMethodTest:
+		sc.derived[capEnotify] = struct{}{}
+	case *NotifyMethodCapabilityTest:
+		sc.derived[capEnotify] = struct{}{}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
 	case *MailboxExistsTest:
 		sc.derived[capMailbox] = struct{}{}
 		if len(v.Mailboxes) == 0 {

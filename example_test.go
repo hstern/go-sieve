@@ -92,9 +92,9 @@ func Example_manageSieveCheckScript() {
 		}
 	}
 
-	report("keep;")                                  // valid
-	report(`fileinto "Spam";`)                       // uses fileinto without require
-	report("require \"vacation\";\nvacation \"x\";") // unmodelled extension -> warning
+	report("keep;")                              // valid
+	report(`fileinto "Spam";`)                   // uses fileinto without require
+	report("require \"reject\";\nreject \"x\";") // unmodelled extension -> warning
 	// Output:
 	// OK
 	// NO
@@ -105,8 +105,8 @@ func Example_manageSieveCheckScript() {
 // command this package does not model is preserved verbatim and reported
 // as a warning rather than an error.
 func ExampleScript_Check() {
-	s, err := sieve.Parse([]byte(`require "vacation";
-vacation "Away until Monday.";`))
+	s, err := sieve.Parse([]byte(`require "reject";
+reject "Not accepted.";`)) // reject is not modelled; preserved as a carrier
 	if err != nil {
 		panic(err)
 	}

@@ -78,6 +78,47 @@ type Error struct {
 	Message string
 }
 
+// Vacation sends an automatic reply (RFC 5230 vacation).
+type Vacation struct {
+	Days      int  // :days N (0 with HasDays means "respond every time")
+	HasDays   bool // whether :days was given
+	Subject   string
+	From      string
+	Addresses []string // :addresses
+	Mime      bool     // :mime
+	Handle    string
+	Reason    string // the reply body (positional)
+}
+
+// Notify sends a notification (RFC 5435 enotify). Method is a
+// notification-method URI (e.g. a mailto: URL, RFC 5436).
+type Notify struct {
+	From       string
+	Importance string // "1", "2", or "3"
+	Options    []string
+	Message    string
+	Method     string
+}
+
+// AddHeader inserts a header field (RFC 5293 editheader). Last appends
+// rather than prepends.
+type AddHeader struct {
+	Last  bool
+	Name  string
+	Value string
+}
+
+// DeleteHeader removes matching header fields (RFC 5293 editheader).
+type DeleteHeader struct {
+	Index      int  // :index N, 0 = unset
+	IndexLast  bool // :last
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	Name       string
+	Keys       []string // optional value patterns
+}
+
 // Redirect forwards the message to Address (§4.4). Copy adds the :copy
 // tag (RFC 3894).
 type Redirect struct {
@@ -128,19 +169,23 @@ type Comment struct {
 	Bracket bool
 }
 
-func (*Comment) isCommand()    {}
-func (*Require) isCommand()    {}
-func (*Stop) isCommand()       {}
-func (*If) isCommand()         {}
-func (*Keep) isCommand()       {}
-func (*Discard) isCommand()    {}
-func (*FileInto) isCommand()   {}
-func (*Redirect) isCommand()   {}
-func (*SetFlag) isCommand()    {}
-func (*AddFlag) isCommand()    {}
-func (*RemoveFlag) isCommand() {}
-func (*Error) isCommand()      {}
-func (*RawCommand) isCommand() {}
+func (*Comment) isCommand()      {}
+func (*Require) isCommand()      {}
+func (*Stop) isCommand()         {}
+func (*If) isCommand()           {}
+func (*Keep) isCommand()         {}
+func (*Discard) isCommand()      {}
+func (*FileInto) isCommand()     {}
+func (*Redirect) isCommand()     {}
+func (*SetFlag) isCommand()      {}
+func (*AddFlag) isCommand()      {}
+func (*RemoveFlag) isCommand()   {}
+func (*Error) isCommand()        {}
+func (*Vacation) isCommand()     {}
+func (*Notify) isCommand()       {}
+func (*AddHeader) isCommand()    {}
+func (*DeleteHeader) isCommand() {}
+func (*RawCommand) isCommand()   {}
 
 // ---- Tests (RFC 5228 §5) ----
 
@@ -225,6 +270,23 @@ type CurrentDateTest struct {
 	Keys       []string
 }
 
+// ValidNotifyMethodTest is true if all listed notification-method URIs are
+// supported (RFC 5435 enotify).
+type ValidNotifyMethodTest struct {
+	URIs []string
+}
+
+// NotifyMethodCapabilityTest matches a notification-method capability
+// (RFC 5435 enotify).
+type NotifyMethodCapabilityTest struct {
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	URI        string
+	Capability string
+	Keys       []string
+}
+
 // MailboxExistsTest is true if every named mailbox exists (RFC 5490
 // mailbox).
 type MailboxExistsTest struct {
@@ -305,26 +367,28 @@ type RawTest struct {
 	Args []Argument
 }
 
-func (*HeaderTest) isTest()        {}
-func (*AddressTest) isTest()       {}
-func (*EnvelopeTest) isTest()      {}
-func (*ExistsTest) isTest()        {}
-func (*SizeTest) isTest()          {}
-func (*BodyTest) isTest()          {}
-func (*DateTest) isTest()          {}
-func (*CurrentDateTest) isTest()   {}
-func (*MailboxExistsTest) isTest() {}
-func (*SpamTest) isTest()          {}
-func (*VirusTest) isTest()         {}
-func (*EnvironmentTest) isTest()   {}
-func (*DuplicateTest) isTest()     {}
-func (*IHaveTest) isTest()         {}
-func (*True) isTest()              {}
-func (*False) isTest()             {}
-func (*AllOf) isTest()             {}
-func (*AnyOf) isTest()             {}
-func (*Not) isTest()               {}
-func (*RawTest) isTest()           {}
+func (*HeaderTest) isTest()                 {}
+func (*AddressTest) isTest()                {}
+func (*EnvelopeTest) isTest()               {}
+func (*ExistsTest) isTest()                 {}
+func (*SizeTest) isTest()                   {}
+func (*BodyTest) isTest()                   {}
+func (*DateTest) isTest()                   {}
+func (*CurrentDateTest) isTest()            {}
+func (*ValidNotifyMethodTest) isTest()      {}
+func (*NotifyMethodCapabilityTest) isTest() {}
+func (*MailboxExistsTest) isTest()          {}
+func (*SpamTest) isTest()                   {}
+func (*VirusTest) isTest()                  {}
+func (*EnvironmentTest) isTest()            {}
+func (*DuplicateTest) isTest()              {}
+func (*IHaveTest) isTest()                  {}
+func (*True) isTest()                       {}
+func (*False) isTest()                      {}
+func (*AllOf) isTest()                      {}
+func (*AnyOf) isTest()                      {}
+func (*Not) isTest()                        {}
+func (*RawTest) isTest()                    {}
 
 // ---- Arguments (for carrier nodes) ----
 
