@@ -126,19 +126,31 @@ type Redirect struct {
 	Copy    bool
 }
 
-// SetFlag replaces the set of IMAP flags (RFC 5232 imap4flags).
+// SetFlag replaces the set of IMAP flags (RFC 5232 imap4flags). Variable,
+// when set, names the variable to store flags in (requires "variables").
 type SetFlag struct {
-	Flags []string
+	Variable string
+	Flags    []string
 }
 
 // AddFlag adds IMAP flags (RFC 5232 imap4flags).
 type AddFlag struct {
-	Flags []string
+	Variable string
+	Flags    []string
 }
 
 // RemoveFlag removes IMAP flags (RFC 5232 imap4flags).
 type RemoveFlag struct {
-	Flags []string
+	Variable string
+	Flags    []string
+}
+
+// Set assigns a variable (RFC 5229 variables). Modifiers are the applied
+// set-modifier tags without their leading colon, e.g. "lower", "length".
+type Set struct {
+	Modifiers []string
+	Name      string
+	Value     string
 }
 
 // RawCommand carries a command this package does not model so that a
@@ -180,6 +192,7 @@ func (*Redirect) isCommand()     {}
 func (*SetFlag) isCommand()      {}
 func (*AddFlag) isCommand()      {}
 func (*RemoveFlag) isCommand()   {}
+func (*Set) isCommand()          {}
 func (*Error) isCommand()        {}
 func (*Vacation) isCommand()     {}
 func (*Notify) isCommand()       {}
@@ -268,6 +281,26 @@ type CurrentDateTest struct {
 	Comparator string
 	DatePart   string
 	Keys       []string
+}
+
+// StringTest matches source strings against keys (RFC 5229 variables).
+type StringTest struct {
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	Source     []string
+	Keys       []string
+}
+
+// HasFlagTest tests IMAP flags (RFC 5232 imap4flags). Variables, when
+// non-empty, names the variables to test instead of the internal flag set
+// (requires "variables").
+type HasFlagTest struct {
+	MatchType  MatchType
+	Relational string
+	Comparator string
+	Variables  []string
+	Flags      []string
 }
 
 // ValidNotifyMethodTest is true if all listed notification-method URIs are
@@ -375,6 +408,8 @@ func (*SizeTest) isTest()                   {}
 func (*BodyTest) isTest()                   {}
 func (*DateTest) isTest()                   {}
 func (*CurrentDateTest) isTest()            {}
+func (*StringTest) isTest()                 {}
+func (*HasFlagTest) isTest()                {}
 func (*ValidNotifyMethodTest) isTest()      {}
 func (*NotifyMethodCapabilityTest) isTest() {}
 func (*MailboxExistsTest) isTest()          {}

@@ -45,6 +45,13 @@ var canonicalScripts = []string{
 	"require \"duplicate\";\nif duplicate :handle \"notify\" :seconds 3600 {\n\tdiscard;\n}\n",
 	// ihave / error (RFC 5463).
 	"require \"ihave\";\nif not ihave \"vacation\" {\n\terror \"vacation not supported\";\n}\n",
+	// variables (RFC 5229): set + string test (${...} is opaque text).
+	"require \"variables\";\nset :lower \"name\" \"Value\";\n",
+	"require \"variables\";\nif string :contains \"${name}\" \"adm\" {\n\tstop;\n}\n",
+	// imap4flags variable form + hasflag (RFC 5232).
+	"require [\"imap4flags\", \"variables\"];\nsetflag \"myflags\" \"\\\\Seen\";\n",
+	"require \"imap4flags\";\nif hasflag \"\\\\Seen\" {\n\tkeep;\n}\n",
+	"require [\"imap4flags\", \"variables\"];\nif hasflag \"myflags\" \"\\\\Flagged\" {\n\tkeep;\n}\n",
 	// vacation (RFC 5230).
 	"require \"vacation\";\nvacation :days 7 :subject \"Away\" \"I am out of office.\";\n",
 	"require \"vacation\";\nvacation \"out of office\";\n",

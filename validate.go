@@ -199,11 +199,13 @@ func (d *Diagnostics) walk(cmds []Command, depth int, path string, sc *capScan) 
 				d.addWarning(cp, "redirect has an empty address")
 			}
 		case *SetFlag:
-			d.flagCommand(cp, "setflag", v.Flags, sc)
+			d.flagCommand(cp, "setflag", v.Variable, v.Flags, sc)
 		case *AddFlag:
-			d.flagCommand(cp, "addflag", v.Flags, sc)
+			d.flagCommand(cp, "addflag", v.Variable, v.Flags, sc)
 		case *RemoveFlag:
-			d.flagCommand(cp, "removeflag", v.Flags, sc)
+			d.flagCommand(cp, "removeflag", v.Variable, v.Flags, sc)
+		case *Set:
+			sc.derived[capVariables] = struct{}{}
 		case *If:
 			d.walkTest(v.Test, cp+".test", sc)
 			d.walk(v.Then, depth+1, cp+".then", sc)
@@ -223,8 +225,11 @@ func (d *Diagnostics) walk(cmds []Command, depth int, path string, sc *capScan) 
 	}
 }
 
-func (d *Diagnostics) flagCommand(path, name string, flags []string, sc *capScan) {
+func (d *Diagnostics) flagCommand(path, name, variable string, flags []string, sc *capScan) {
 	sc.derived[capImap4Flags] = struct{}{}
+	if variable != "" {
+		sc.derived[capVariables] = struct{}{}
+	}
 	if len(flags) == 0 {
 		d.addWarning(path, name+" has an empty flag list")
 	}
@@ -270,6 +275,17 @@ func (d *Diagnostics) walkTest(t Test, path string, sc *capScan) {
 		if len(v.Headers) == 0 {
 			d.addWarning(path, "exists test has an empty header list")
 		}
+	case *StringTest:
+		sc.derived[capVariables] = struct{}{}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
+	case *HasFlagTest:
+		sc.derived[capImap4Flags] = struct{}{}
+		if len(v.Variables) > 0 {
+			sc.derived[capVariables] = struct{}{}
+		}
+		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
 	case *ValidNotifyMethodTest:
 		sc.derived[capEnotify] = struct{}{}
 	case *NotifyMethodCapabilityTest:

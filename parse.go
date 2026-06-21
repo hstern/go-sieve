@@ -201,12 +201,15 @@ func (p *parser) parseCommand() (Command, error) {
 	case "redirect":
 		return p.knownCommandOrRaw("redirect", p.parseRedirect)
 	case "setflag", "addflag", "removeflag":
-		// The no-variable flag commands take only a string-list; any tag
-		// means an unmodelled form, so preserve the whole command.
+		// The flag commands take a string-list (optionally preceded by a
+		// variable name); any tag means an unmodelled form, so preserve the
+		// whole command as a carrier.
 		if p.peek().kind == tTag {
 			return p.parseRawCommand(t.text)
 		}
 		return p.parseFlagCommand(t.text)
+	case "set":
+		return p.knownCommandOrRaw("set", p.parseSet)
 	default:
 		return p.parseRawCommand(t.text)
 	}
@@ -459,21 +462,102 @@ func (p *parser) parseRedirect() (Command, error) {
 }
 
 func (p *parser) parseFlagCommand(name string) (Command, error) {
-	flags, err := p.parseStringList()
+	first, err := p.parseStringList()
 	if err != nil {
 		return nil, err
+	}
+	variable, flags := "", first
+	// A second string-list means the first was the variable name (the
+	// variables-extension form of setflag/addflag/removeflag, RFC 5232).
+	if k := p.peek().kind; k == tString || k == tLBracket {
+		if len(first) == 1 {
+			variable = first[0]
+		}
+		flags, err = p.parseStringList()
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := p.expectSemicolon(); err != nil {
 		return nil, err
 	}
 	switch name {
 	case "setflag":
-		return &SetFlag{Flags: flags}, nil
+		return &SetFlag{Variable: variable, Flags: flags}, nil
 	case "addflag":
-		return &AddFlag{Flags: flags}, nil
+		return &AddFlag{Variable: variable, Flags: flags}, nil
 	default:
-		return &RemoveFlag{Flags: flags}, nil
+		return &RemoveFlag{Variable: variable, Flags: flags}, nil
 	}
+}
+
+func (p *parser) parseSet() (Command, error) {
+	s := &Set{}
+	for p.peek().kind == tTag {
+		s.Modifiers = append(s.Modifiers, p.next().text)
+	}
+	name, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	value, err := p.parseSingleString()
+	if err != nil {
+		return nil, err
+	}
+	s.Name, s.Value = name, value
+	return s, p.expectSemicolon()
+}
+
+func (p *parser) parseStringTest() (Test, error) {
+	st := &StringTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		ok, err := p.applyMatchTag(tag, &st.MatchType, &st.Relational, &st.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	source, err := p.parseStringList()
+	if err != nil {
+		return nil, err
+	}
+	keys, err := p.parseStringList()
+	if err != nil {
+		return nil, err
+	}
+	st.Source, st.Keys = source, keys
+	return st, nil
+}
+
+func (p *parser) parseHasFlagTest() (Test, error) {
+	ht := &HasFlagTest{}
+	for p.peek().kind == tTag {
+		tag := p.next()
+		ok, err := p.applyMatchTag(tag, &ht.MatchType, &ht.Relational, &ht.Comparator)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, errUnknownTag
+		}
+	}
+	first, err := p.parseStringList()
+	if err != nil {
+		return nil, err
+	}
+	if k := p.peek().kind; k == tString || k == tLBracket {
+		ht.Variables = first
+		ht.Flags, err = p.parseStringList()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		ht.Flags = first
+	}
+	return ht, nil
 }
 
 func (p *parser) parseRawCommand(name string) (Command, error) {
@@ -588,6 +672,10 @@ func (p *parser) parseTest() (Test, error) {
 		return p.knownTestOrRaw("date", p.parseDateTest)
 	case "currentdate":
 		return p.knownTestOrRaw("currentdate", p.parseCurrentDateTest)
+	case "string":
+		return p.knownTestOrRaw("string", p.parseStringTest)
+	case "hasflag":
+		return p.knownTestOrRaw("hasflag", p.parseHasFlagTest)
 	case "valid_notify_method":
 		list, err := p.parseStringList()
 		if err != nil {
