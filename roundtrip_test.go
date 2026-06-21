@@ -31,6 +31,12 @@ var canonicalScripts = []string{
 	// Unknown command/test carriers round-trip verbatim.
 	"require \"vacation\";\nvacation \"out of office\";\n",
 	"if spamtest :value \"ge\" \"5\" {\n\tdiscard;\n}\n",
+	// Unknown tag on a known command falls back to a carrier.
+	"fileinto :create \"Archive\";\n",
+	// Unknown tag on a known test falls back to a carrier.
+	"if header :count \"ge\" \"received\" \"3\" {\n\tdiscard;\n}\n",
+	// Unmodelled control command taking a test argument before its block.
+	"mycontrol true {\n\tkeep;\n}\n",
 	// Multi-line text: block with dot-stuffing.
 	"redirect text:\nline one\n..dotted\nline three\n.\n;\n",
 }
@@ -100,6 +106,45 @@ if header :contains "subject" "hi" {
 	out, _ := s.Encode()
 	if string(out) != want {
 		t.Errorf("canonicalized form\n got: %q\nwant: %q", out, want)
+	}
+}
+
+func TestCarrierFallbacks(t *testing.T) {
+	// Unknown tag on a known command -> *RawCommand, not a *FileInto.
+	s, err := Parse([]byte(`fileinto :create "Archive";`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc, ok := s.Commands[0].(*RawCommand); !ok {
+		t.Errorf("fileinto :create => %T, want *RawCommand", s.Commands[0])
+	} else if rc.Name != "fileinto" {
+		t.Errorf("carrier name = %q, want fileinto", rc.Name)
+	}
+
+	// Unknown tag on a known test -> *RawTest.
+	s, err = Parse([]byte(`if header :count "ge" "received" "3" { discard; }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	iff := s.Commands[0].(*If)
+	if _, ok := iff.Test.(*RawTest); !ok {
+		t.Errorf("header :count => %T, want *RawTest", iff.Test)
+	}
+
+	// Unmodelled control command with a test argument.
+	s, err = Parse([]byte("mycontrol true {\n\tkeep;\n}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc, ok := s.Commands[0].(*RawCommand)
+	if !ok {
+		t.Fatalf("mycontrol => %T, want *RawCommand", s.Commands[0])
+	}
+	if _, ok := rc.Test.(*True); !ok {
+		t.Errorf("carrier test = %T, want *True", rc.Test)
+	}
+	if !rc.HasBlock || len(rc.Block) != 1 {
+		t.Errorf("carrier block = %v (HasBlock=%v), want one command", rc.Block, rc.HasBlock)
 	}
 }
 

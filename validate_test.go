@@ -97,6 +97,91 @@ func TestCheckWarnsOnUnusedCapability(t *testing.T) {
 	}
 }
 
+func TestValidateComparatorLegality(t *testing.T) {
+	// A non-built-in comparator requires comparator-<name>.
+	used := &HeaderTest{Comparator: "i;ascii-numeric", Headers: []string{"x-priority"}, Keys: []string{"1"}}
+	missing := &Script{Commands: []Command{&If{Test: used, Then: []Command{&Keep{}}}}}
+	if err := missing.Validate(); err == nil {
+		t.Fatal("want error: comparator-i;ascii-numeric not required")
+	}
+
+	// Declaring it makes the script valid.
+	ok := &Script{Commands: []Command{
+		&Require{Capabilities: []string{"comparator-i;ascii-numeric"}},
+		&If{Test: used, Then: []Command{&Keep{}}},
+	}}
+	if err := ok.Validate(); err != nil {
+		t.Errorf("Validate: %v", err)
+	}
+
+	// The built-in comparators need no capability.
+	for _, comp := range []string{"", "i;ascii-casemap", "i;octet"} {
+		s := &Script{Commands: []Command{&If{
+			Test: &HeaderTest{Comparator: comp, Headers: []string{"subject"}, Keys: []string{"x"}},
+			Then: []Command{&Keep{}},
+		}}}
+		if err := s.Validate(); err != nil {
+			t.Errorf("built-in comparator %q should validate: %v", comp, err)
+		}
+	}
+}
+
+func TestEncoderDerivesComparatorRequire(t *testing.T) {
+	s := &Script{Commands: []Command{&If{
+		Test: &HeaderTest{Comparator: "i;ascii-numeric", Headers: []string{"x"}, Keys: []string{"1"}},
+		Then: []Command{&Keep{}},
+	}}}
+	out, err := s.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "require \"comparator-i;ascii-numeric\";\n"
+	if got := string(out); len(got) < len(want) || got[:len(want)] != want {
+		t.Errorf("auto-require missing comparator capability\n got: %q", got)
+	}
+}
+
+func TestCheckWarnsOnDanglingMatchEscape(t *testing.T) {
+	s := &Script{Commands: []Command{&If{
+		Test: &HeaderTest{MatchType: MatchMatches, Headers: []string{"subject"}, Keys: []string{`foo\`}},
+		Then: []Command{&Keep{}},
+	}}}
+	d := s.Check()
+	if d.HasErrors() {
+		t.Errorf("dangling escape should be a warning, not an error: %v", d.Errors)
+	}
+	found := false
+	for _, w := range d.Warnings {
+		if w.Path != "" {
+			found = true
+		}
+	}
+	if !found || len(d.Warnings) == 0 {
+		t.Errorf("want a located :matches warning, got %v", d.Warnings)
+	}
+}
+
+func TestCheckWarnsOnDegenerateShapes(t *testing.T) {
+	s := &Script{Commands: []Command{
+		&Require{Capabilities: []string{"fileinto"}}, // cover fileinto so only structural warnings remain
+		&If{Test: &ExistsTest{}, Then: []Command{&FileInto{Mailbox: ""}}},
+		&If{Test: &AllOf{}, Then: []Command{&Keep{}}},
+	}}
+	d := s.Check()
+	if d.HasErrors() {
+		t.Errorf("degenerate shapes should warn, not error: %v", d.Errors)
+	}
+	// empty exists header list, empty fileinto mailbox, empty allof => >= 3 warnings.
+	if len(d.Warnings) < 3 {
+		t.Errorf("want >=3 structural warnings, got %d: %v", len(d.Warnings), d.Warnings)
+	}
+	for _, w := range d.Warnings {
+		if w.Path == "" {
+			t.Errorf("structural warning lacks a Path: %q", w.Message)
+		}
+	}
+}
+
 func TestEncodedScriptsAlwaysValidate(t *testing.T) {
 	// Every canonical script in the round-trip corpus must parse and
 	// validate cleanly (auto-require guarantees coverage).

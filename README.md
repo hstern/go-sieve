@@ -88,8 +88,9 @@ for _, c := range s.Commands {
 - **Byte-stable `Encode`**: one canonical form, deterministic output,
   a single leading `require` derived from the commands used.
 - **Tolerant `Parse`**: comments and whitespace tolerated; unknown
-  commands/tests preserved verbatim in `RawCommand`/`RawTest` so
-  hand-edited scripts round-trip.
+  commands/tests — and unmodelled tags on known ones — preserved verbatim
+  in `RawCommand`/`RawTest` so hand-edited scripts round-trip. Pass
+  `Parse(b, KeepComments())` to retain command-level comments.
 - **Opt-in `Validate`**: checks the obvious MUSTs (every used extension
   is `require`d, `require` precedes use, tag legality).
 

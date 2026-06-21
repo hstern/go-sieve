@@ -94,15 +94,33 @@ type RemoveFlag struct {
 
 // RawCommand carries a command this package does not model so that a
 // hand-edited script round-trips. It re-emits verbatim (canonically
-// re-quoted). Block is non-nil when the command was followed by a
-// { ... } block rather than terminated by ';'.
+// re-quoted). It also captures a known command (or test) that carried a
+// tag this package does not model — the whole construct is preserved as a
+// RawCommand rather than rejected.
+//
+// Test is non-nil when the command was an unmodelled control structure
+// that took a test argument before its block (e.g. a custom if-like
+// command). HasBlock is true when the command was followed by a { ... }
+// block rather than terminated by ';'.
 type RawCommand struct {
 	Name     string
 	Args     []Argument
+	Test     Test
 	Block    []Command
 	HasBlock bool
 }
 
+// Comment is a command-level comment, preserved only when a script is
+// parsed with [KeepComments]. Text is the comment body without its
+// delimiters; Bracket selects /* ... */ framing over the default
+// # ... line comment. Comments that appear inside an expression (between
+// a test's arguments, say) are not modelled and are dropped on parse.
+type Comment struct {
+	Text    string
+	Bracket bool
+}
+
+func (*Comment) isCommand()    {}
 func (*Require) isCommand()    {}
 func (*Stop) isCommand()       {}
 func (*If) isCommand()         {}

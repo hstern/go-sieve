@@ -6,6 +6,24 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `Script.Check` now returns located diagnostics (`Diagnostic.Path`) and
+  warns about degenerate shapes (empty header/key lists, empty
+  `allof`/`anyof`, empty targets).
+- Comparator legality: a non-built-in comparator derives a
+  `comparator-<name>` capability, enforced by both auto-`require` and
+  `Validate` (RFC 5228 §2.7.3 / RFC 4790).
+- `:matches` patterns ending in a dangling backslash escape now warn.
+- `Parse(b, KeepComments())` preserves command-level comments as
+  `Comment` nodes; the default remains comment-free.
+
+### Changed
+
+- Parser is now fully Postel-tolerant: an unmodelled tag on a known
+  command/test, and an unmodelled control command taking a test argument,
+  are preserved as carriers instead of being rejected.
+
 ## [0.1.0] - 2026-06-21
 
 ### Added

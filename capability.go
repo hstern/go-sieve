@@ -63,19 +63,29 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 				collectCommandCaps(b.Then, set)
 			}
 			collectCommandCaps(v.Else, set)
+		case *RawCommand:
+			// The carrier command contributes nothing itself (its own
+			// capability rides on an explicit Require), but a modelled test
+			// or block it carries still does.
+			if v.Test != nil {
+				collectTestCaps(v.Test, set)
+			}
+			collectCommandCaps(v.Block, set)
 		}
-		// *Keep, *Discard, *Stop, *RawCommand contribute nothing
-		// automatically; a RawCommand's capability is carried by an
-		// explicit Require.
+		// *Keep, *Discard, *Stop contribute nothing.
 	}
 }
 
 func collectTestCaps(t Test, set map[string]struct{}) {
 	switch v := t.(type) {
+	case *HeaderTest:
+		addCap(set, comparatorCap(v.Comparator))
+	case *AddressTest:
+		addCap(set, comparatorCap(v.Comparator))
 	case *EnvelopeTest:
-		addCap(set, capEnvelope)
+		addCap(set, capEnvelope, comparatorCap(v.Comparator))
 	case *BodyTest:
-		addCap(set, capBody)
+		addCap(set, capBody, comparatorCap(v.Comparator))
 	case *AllOf:
 		for _, sub := range v.Tests {
 			collectTestCaps(sub, set)
@@ -86,5 +96,19 @@ func collectTestCaps(t Test, set map[string]struct{}) {
 		}
 	case *Not:
 		collectTestCaps(v.Test, set)
+	}
+}
+
+// comparatorCap returns the capability a comparator requires, or "" for
+// the two built-in comparators that need no require (RFC 5228 §2.7.3:
+// i;ascii-casemap and i;octet are mandatory-to-implement). Any other
+// comparator must be declared with require "comparator-<name>"
+// (RFC 5228 §2.7.3, RFC 4790 §3.1).
+func comparatorCap(comp string) string {
+	switch comp {
+	case "", defaultComparator, "i;octet":
+		return ""
+	default:
+		return "comparator-" + comp
 	}
 }
