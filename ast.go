@@ -138,6 +138,7 @@ func (*RawCommand) isCommand() {}
 // HeaderTest matches header field values (§5.7).
 type HeaderTest struct {
 	MatchType  MatchType
+	Relational string // relational operator for :count/:value (RFC 5231)
 	Comparator string // "" means the default i;ascii-casemap
 	Headers    []string
 	Keys       []string
@@ -146,6 +147,7 @@ type HeaderTest struct {
 // AddressTest matches addresses in structured header fields (§5.1).
 type AddressTest struct {
 	MatchType   MatchType
+	Relational  string // relational operator for :count/:value (RFC 5231)
 	AddressPart AddressPart
 	Comparator  string
 	Headers     []string
@@ -155,6 +157,7 @@ type AddressTest struct {
 // EnvelopeTest matches the SMTP envelope (§5.4; envelope extension).
 type EnvelopeTest struct {
 	MatchType   MatchType
+	Relational  string // relational operator for :count/:value (RFC 5231)
 	AddressPart AddressPart
 	Comparator  string
 	Parts       []string // envelope-part, e.g. "from", "to"
@@ -178,6 +181,7 @@ type BodyTest struct {
 	Transform    BodyTransform
 	ContentTypes []string // only meaningful when Transform is BodyContent
 	MatchType    MatchType
+	Relational   string // relational operator for :count/:value (RFC 5231)
 	Comparator   string
 	Keys         []string
 }
@@ -259,11 +263,17 @@ func (TagArg) isArgument()    {}
 // the default and is omitted from canonical output.
 type MatchType int
 
-// Match-type tags (RFC 5228 §2.7.1).
+// Match-type tags (RFC 5228 §2.7.1, plus the relational and regex
+// extensions). MatchCount and MatchValue carry a relational operator in
+// the test's Relational field (RFC 5231); MatchRegex is the regex
+// extension (draft-murchison-sieve-regex).
 const (
 	MatchIs       MatchType = iota // :is (default)
 	MatchContains                  // :contains
 	MatchMatches                   // :matches
+	MatchCount                     // :count <relational> (require "relational")
+	MatchValue                     // :value <relational> (require "relational")
+	MatchRegex                     // :regex (require "regex")
 )
 
 func (m MatchType) tag() string {
@@ -272,20 +282,33 @@ func (m MatchType) tag() string {
 		return ":contains"
 	case MatchMatches:
 		return ":matches"
+	case MatchCount:
+		return ":count"
+	case MatchValue:
+		return ":value"
+	case MatchRegex:
+		return ":regex"
 	default:
 		return ":is"
 	}
 }
 
+// relational reports whether the match-type takes a relational operator
+// argument (the :count / :value forms of RFC 5231).
+func (m MatchType) relational() bool { return m == MatchCount || m == MatchValue }
+
 // AddressPart is a Sieve address-part (§2.7.2). The zero value
 // AddressAll is the default and is omitted from canonical output.
 type AddressPart int
 
-// Address-part tags (RFC 5228 §2.7.2).
+// Address-part tags (RFC 5228 §2.7.2, plus the subaddress extension).
+// AddressUser and AddressDetail are the subaddress extension (RFC 5233).
 const (
 	AddressAll       AddressPart = iota // :all (default)
 	AddressLocalPart                    // :localpart
 	AddressDomain                       // :domain
+	AddressUser                         // :user (require "subaddress")
+	AddressDetail                       // :detail (require "subaddress")
 )
 
 func (a AddressPart) tag() string {
@@ -294,6 +317,10 @@ func (a AddressPart) tag() string {
 		return ":localpart"
 	case AddressDomain:
 		return ":domain"
+	case AddressUser:
+		return ":user"
+	case AddressDetail:
+		return ":detail"
 	default:
 		return ":all"
 	}

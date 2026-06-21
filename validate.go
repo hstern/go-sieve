@@ -216,17 +216,23 @@ func (d *Diagnostics) walkTest(t Test, path string, sc *capScan) {
 	switch v := t.(type) {
 	case *HeaderTest:
 		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
 		d.checkComparison(path, v.Headers, v.Keys, v.MatchType)
 	case *AddressTest:
 		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
+		d.derive(sc, addressPartCap(v.AddressPart))
 		d.checkComparison(path, v.Headers, v.Keys, v.MatchType)
 	case *EnvelopeTest:
 		sc.derived[capEnvelope] = struct{}{}
 		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
+		d.derive(sc, addressPartCap(v.AddressPart))
 		d.checkComparison(path, v.Parts, v.Keys, v.MatchType)
 	case *BodyTest:
 		sc.derived[capBody] = struct{}{}
 		d.derive(sc, comparatorCap(v.Comparator))
+		d.derive(sc, matchCap(v.MatchType))
 		if len(v.Keys) == 0 {
 			d.addWarning(path, "body test has an empty key list")
 		}

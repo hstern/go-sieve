@@ -8,6 +8,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Extensions: **relational** (`:count`/`:value` + operator, RFC 5231),
+  **subaddress** (`:user`/`:detail` address-parts, RFC 5233), and **regex**
+  (`:regex` match-type, draft) — now modelled as typed match-types /
+  address-parts that derive their capability via auto-`require` and
+  `Validate`.
+
 - `Script.Check` now returns located diagnostics (`Diagnostic.Path`) and
   warns about degenerate shapes (empty header/key lists, empty
   `allof`/`anyof`, empty targets).

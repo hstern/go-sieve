@@ -227,7 +227,7 @@ func (e *encoder) encodeTest(t Test) error {
 	case *HeaderTest:
 		e.b.WriteString("header")
 		e.writeComparator(v.Comparator)
-		e.writeMatch(v.MatchType)
+		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Headers)
 		e.b.WriteByte(' ')
@@ -236,7 +236,7 @@ func (e *encoder) encodeTest(t Test) error {
 		e.b.WriteString("address")
 		e.writeComparator(v.Comparator)
 		e.writeAddressPart(v.AddressPart)
-		e.writeMatch(v.MatchType)
+		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Headers)
 		e.b.WriteByte(' ')
@@ -245,7 +245,7 @@ func (e *encoder) encodeTest(t Test) error {
 		e.b.WriteString("envelope")
 		e.writeComparator(v.Comparator)
 		e.writeAddressPart(v.AddressPart)
-		e.writeMatch(v.MatchType)
+		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Parts)
 		e.b.WriteByte(' ')
@@ -265,7 +265,7 @@ func (e *encoder) encodeTest(t Test) error {
 		e.b.WriteString("body")
 		e.writeComparator(v.Comparator)
 		e.writeBodyTransform(v)
-		e.writeMatch(v.MatchType)
+		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Keys)
 	case *AllOf:
@@ -315,10 +315,15 @@ func (e *encoder) encodeArg(a Argument) {
 	}
 }
 
-func (e *encoder) writeMatch(m MatchType) {
-	if m != MatchIs {
+func (e *encoder) writeMatch(m MatchType, relational string) {
+	if m == MatchIs {
+		return
+	}
+	e.b.WriteByte(' ')
+	e.b.WriteString(m.tag())
+	if m.relational() {
 		e.b.WriteByte(' ')
-		e.b.WriteString(m.tag())
+		e.b.WriteString(quote(relational))
 	}
 }
 
