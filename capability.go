@@ -79,13 +79,13 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 func collectTestCaps(t Test, set map[string]struct{}) {
 	switch v := t.(type) {
 	case *HeaderTest:
-		addCap(set, comparatorCap(v.Comparator))
+		addCap(set, comparatorCap(v.Comparator), matchCap(v.MatchType))
 	case *AddressTest:
-		addCap(set, comparatorCap(v.Comparator))
+		addCap(set, comparatorCap(v.Comparator), matchCap(v.MatchType), addressPartCap(v.AddressPart))
 	case *EnvelopeTest:
-		addCap(set, capEnvelope, comparatorCap(v.Comparator))
+		addCap(set, capEnvelope, comparatorCap(v.Comparator), matchCap(v.MatchType), addressPartCap(v.AddressPart))
 	case *BodyTest:
-		addCap(set, capBody, comparatorCap(v.Comparator))
+		addCap(set, capBody, comparatorCap(v.Comparator), matchCap(v.MatchType))
 	case *AllOf:
 		for _, sub := range v.Tests {
 			collectTestCaps(sub, set)
@@ -96,6 +96,31 @@ func collectTestCaps(t Test, set map[string]struct{}) {
 		}
 	case *Not:
 		collectTestCaps(v.Test, set)
+	}
+}
+
+// matchCap returns the capability a match-type requires, or "" for the
+// built-in ones: :count/:value need "relational" (RFC 5231) and :regex
+// needs "regex" (draft-murchison-sieve-regex).
+func matchCap(m MatchType) string {
+	switch m {
+	case MatchCount, MatchValue:
+		return "relational"
+	case MatchRegex:
+		return "regex"
+	default:
+		return ""
+	}
+}
+
+// addressPartCap returns the capability an address-part requires, or "" for
+// the built-in ones: :user/:detail need "subaddress" (RFC 5233).
+func addressPartCap(a AddressPart) string {
+	switch a {
+	case AddressUser, AddressDetail:
+		return "subaddress"
+	default:
+		return ""
 	}
 }
 

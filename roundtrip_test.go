@@ -33,10 +33,15 @@ var canonicalScripts = []string{
 	"if spamtest :value \"ge\" \"5\" {\n\tdiscard;\n}\n",
 	// Unknown tag on a known command falls back to a carrier.
 	"fileinto :create \"Archive\";\n",
-	// Unknown tag on a known test falls back to a carrier.
-	"if header :count \"ge\" \"received\" \"3\" {\n\tdiscard;\n}\n",
 	// Unmodelled control command taking a test argument before its block.
 	"mycontrol true {\n\tkeep;\n}\n",
+	// relational (RFC 5231): :count / :value derive "relational".
+	"require \"relational\";\nif header :count \"ge\" \"received\" \"3\" {\n\tdiscard;\n}\n",
+	"require [\"body\", \"relational\"];\nif body :value \"gt\" \"5\" {\n\tkeep;\n}\n",
+	// subaddress (RFC 5233): :user / :detail derive "subaddress".
+	"require [\"fileinto\", \"subaddress\"];\nif address :user \"to\" \"sales\" {\n\tfileinto \"Sales\";\n}\n",
+	// regex (draft): :regex derives "regex".
+	"require [\"fileinto\", \"regex\"];\nif header :regex \"subject\" \"^\\\\[ticket-[0-9]+\\\\]\" {\n\tfileinto \"Tickets\";\n}\n",
 	// Multi-line text: block with dot-stuffing.
 	"redirect text:\nline one\n..dotted\nline three\n.\n;\n",
 }
@@ -121,14 +126,27 @@ func TestCarrierFallbacks(t *testing.T) {
 		t.Errorf("carrier name = %q, want fileinto", rc.Name)
 	}
 
-	// Unknown tag on a known test -> *RawTest.
-	s, err = Parse([]byte(`if header :count "ge" "received" "3" { discard; }`))
+	// A genuinely unknown tag on a known test -> *RawTest.
+	s, err = Parse([]byte(`if header :novel "received" "3" { discard; }`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	iff := s.Commands[0].(*If)
 	if _, ok := iff.Test.(*RawTest); !ok {
-		t.Errorf("header :count => %T, want *RawTest", iff.Test)
+		t.Errorf("header :novel => %T, want *RawTest", iff.Test)
+	}
+
+	// :count is now a modelled relational match-type, not a carrier.
+	s, err = Parse([]byte(`if header :count "ge" "received" "3" { discard; }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ht, ok := s.Commands[0].(*If).Test.(*HeaderTest)
+	if !ok {
+		t.Fatalf("header :count => %T, want *HeaderTest", s.Commands[0].(*If).Test)
+	}
+	if ht.MatchType != MatchCount || ht.Relational != "ge" {
+		t.Errorf("header :count parsed as MatchType=%d Relational=%q", ht.MatchType, ht.Relational)
 	}
 
 	// Unmodelled control command with a test argument.

@@ -459,8 +459,9 @@ func (p *parser) parseSizeTest() (Test, error) {
 }
 
 // applyMatchTag handles the match-type and comparator tags common to the
-// comparison tests. It reports whether the tag was recognised.
-func (p *parser) applyMatchTag(tag token, mt *MatchType, comp *string) (bool, error) {
+// comparison tests, including the relational (:count/:value, RFC 5231) and
+// regex (:regex) extensions. It reports whether the tag was recognised.
+func (p *parser) applyMatchTag(tag token, mt *MatchType, rel, comp *string) (bool, error) {
 	switch tag.text {
 	case "is":
 		*mt = MatchIs
@@ -468,6 +469,19 @@ func (p *parser) applyMatchTag(tag token, mt *MatchType, comp *string) (bool, er
 		*mt = MatchContains
 	case "matches":
 		*mt = MatchMatches
+	case "regex":
+		*mt = MatchRegex
+	case "count", "value":
+		if tag.text == "count" {
+			*mt = MatchCount
+		} else {
+			*mt = MatchValue
+		}
+		s, err := p.parseSingleString()
+		if err != nil {
+			return false, err
+		}
+		*rel = s
 	case "comparator":
 		s, err := p.parseSingleString()
 		if err != nil {
@@ -488,6 +502,10 @@ func applyAddressPartTag(tag token, ap *AddressPart) bool {
 		*ap = AddressLocalPart
 	case "domain":
 		*ap = AddressDomain
+	case "user":
+		*ap = AddressUser
+	case "detail":
+		*ap = AddressDetail
 	default:
 		return false
 	}
@@ -498,7 +516,7 @@ func (p *parser) parseHeaderTest() (Test, error) {
 	h := &HeaderTest{}
 	for p.peek().kind == tTag {
 		tag := p.next()
-		ok, err := p.applyMatchTag(tag, &h.MatchType, &h.Comparator)
+		ok, err := p.applyMatchTag(tag, &h.MatchType, &h.Relational, &h.Comparator)
 		if err != nil {
 			return nil, err
 		}
@@ -525,7 +543,7 @@ func (p *parser) parseAddressTest() (Test, error) {
 		if applyAddressPartTag(tag, &a.AddressPart) {
 			continue
 		}
-		ok, err := p.applyMatchTag(tag, &a.MatchType, &a.Comparator)
+		ok, err := p.applyMatchTag(tag, &a.MatchType, &a.Relational, &a.Comparator)
 		if err != nil {
 			return nil, err
 		}
@@ -552,7 +570,7 @@ func (p *parser) parseEnvelopeTest() (Test, error) {
 		if applyAddressPartTag(tag, &e.AddressPart) {
 			continue
 		}
-		ok, err := p.applyMatchTag(tag, &e.MatchType, &e.Comparator)
+		ok, err := p.applyMatchTag(tag, &e.MatchType, &e.Relational, &e.Comparator)
 		if err != nil {
 			return nil, err
 		}
@@ -592,7 +610,7 @@ func (p *parser) parseBodyTest() (Test, error) {
 			b.ContentTypes = ct
 			continue
 		}
-		ok, err := p.applyMatchTag(tag, &b.MatchType, &b.Comparator)
+		ok, err := p.applyMatchTag(tag, &b.MatchType, &b.Relational, &b.Comparator)
 		if err != nil {
 			return nil, err
 		}

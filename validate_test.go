@@ -182,6 +182,34 @@ func TestCheckWarnsOnDegenerateShapes(t *testing.T) {
 	}
 }
 
+func TestValidateExtensionMatchArgs(t *testing.T) {
+	// Each new match-arg construct requires its capability.
+	cases := []struct {
+		name string
+		test Test
+		cap  string
+	}{
+		{"relational :count", &HeaderTest{MatchType: MatchCount, Relational: "ge", Headers: []string{"x"}, Keys: []string{"1"}}, "relational"},
+		{"regex :regex", &HeaderTest{MatchType: MatchRegex, Headers: []string{"x"}, Keys: []string{".*"}}, "regex"},
+		{"subaddress :user", &AddressTest{AddressPart: AddressUser, Headers: []string{"to"}, Keys: []string{"x"}}, "subaddress"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			missing := &Script{Commands: []Command{&If{Test: tc.test, Then: []Command{&Keep{}}}}}
+			if err := missing.Validate(); err == nil {
+				t.Errorf("want error for missing require %q", tc.cap)
+			}
+			ok := &Script{Commands: []Command{
+				&Require{Capabilities: []string{tc.cap}},
+				&If{Test: tc.test, Then: []Command{&Keep{}}},
+			}}
+			if err := ok.Validate(); err != nil {
+				t.Errorf("Validate with %q declared: %v", tc.cap, err)
+			}
+		})
+	}
+}
+
 func TestEncodedScriptsAlwaysValidate(t *testing.T) {
 	// Every canonical script in the round-trip corpus must parse and
 	// validate cleanly (auto-require guarantees coverage).
