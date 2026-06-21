@@ -8,6 +8,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Extensions: **variables** (`set`, `string` test, RFC 5229) and the
+  **imap4flags** variable form (`setflag`/`addflag`/`removeflag` with a
+  variable name, `hasflag` test, RFC 5232) — typed nodes deriving
+  `variables`/`imap4flags`. This completes the deferred-extension catalog.
+
 - Extensions: **vacation** (RFC 5230), **notify**/**enotify** (`notify`,
   `valid_notify_method`, `notify_method_capability`, RFC 5435), and
   **editheader** (`addheader`/`deleteheader`, RFC 5293) — typed action and

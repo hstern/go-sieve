@@ -187,11 +187,22 @@ func (e *encoder) encodeCommand(c Command) error {
 		e.b.WriteString(quote(v.Address))
 		e.b.WriteString(";\n")
 	case *SetFlag:
-		e.writeFlagCommand("setflag", v.Flags)
+		e.writeFlagCommand("setflag", v.Variable, v.Flags)
 	case *AddFlag:
-		e.writeFlagCommand("addflag", v.Flags)
+		e.writeFlagCommand("addflag", v.Variable, v.Flags)
 	case *RemoveFlag:
-		e.writeFlagCommand("removeflag", v.Flags)
+		e.writeFlagCommand("removeflag", v.Variable, v.Flags)
+	case *Set:
+		e.b.WriteString("set")
+		for _, m := range v.Modifiers {
+			e.b.WriteString(" :")
+			e.b.WriteString(m)
+		}
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Name))
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(v.Value))
+		e.b.WriteString(";\n")
 	case *If:
 		return e.encodeIf(v)
 	case *RawCommand:
@@ -202,8 +213,12 @@ func (e *encoder) encodeCommand(c Command) error {
 	return nil
 }
 
-func (e *encoder) writeFlagCommand(name string, flags []string) {
+func (e *encoder) writeFlagCommand(name, variable string, flags []string) {
 	e.b.WriteString(name)
+	if variable != "" {
+		e.b.WriteByte(' ')
+		e.b.WriteString(quote(variable))
+	}
 	e.b.WriteByte(' ')
 	e.writeStringList(flags)
 	e.b.WriteString(";\n")
@@ -351,6 +366,24 @@ func (e *encoder) encodeTest(t Test) error {
 		e.writeMatch(v.MatchType, v.Relational)
 		e.b.WriteByte(' ')
 		e.writeStringList(v.Keys)
+	case *StringTest:
+		e.b.WriteString("string")
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		e.b.WriteByte(' ')
+		e.writeStringList(v.Source)
+		e.b.WriteByte(' ')
+		e.writeStringList(v.Keys)
+	case *HasFlagTest:
+		e.b.WriteString("hasflag")
+		e.writeComparator(v.Comparator)
+		e.writeMatch(v.MatchType, v.Relational)
+		if len(v.Variables) > 0 {
+			e.b.WriteByte(' ')
+			e.writeStringList(v.Variables)
+		}
+		e.b.WriteByte(' ')
+		e.writeStringList(v.Flags)
 	case *ValidNotifyMethodTest:
 		e.b.WriteString("valid_notify_method ")
 		e.writeStringList(v.URIs)

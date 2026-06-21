@@ -25,6 +25,7 @@ const (
 	capVacation     = "vacation"
 	capEnotify      = "enotify"
 	capEditHeader   = "editheader"
+	capVariables    = "variables"
 )
 
 // Capabilities returns the sorted, de-duplicated set of extension
@@ -68,8 +69,23 @@ func collectCommandCaps(cmds []Command, set map[string]struct{}) {
 			if v.Copy {
 				addCap(set, capCopy)
 			}
-		case *SetFlag, *AddFlag, *RemoveFlag:
+		case *SetFlag:
 			addCap(set, capImap4Flags)
+			if v.Variable != "" {
+				addCap(set, capVariables)
+			}
+		case *AddFlag:
+			addCap(set, capImap4Flags)
+			if v.Variable != "" {
+				addCap(set, capVariables)
+			}
+		case *RemoveFlag:
+			addCap(set, capImap4Flags)
+			if v.Variable != "" {
+				addCap(set, capVariables)
+			}
+		case *Set:
+			addCap(set, capVariables)
 		case *Error:
 			addCap(set, capIhave)
 		case *Vacation:
@@ -117,6 +133,13 @@ func collectTestCaps(t Test, set map[string]struct{}) {
 		addCap(set, capDate, comparatorCap(v.Comparator), matchCap(v.MatchType), indexCap(v.Index))
 	case *CurrentDateTest:
 		addCap(set, capDate, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *StringTest:
+		addCap(set, capVariables, comparatorCap(v.Comparator), matchCap(v.MatchType))
+	case *HasFlagTest:
+		addCap(set, capImap4Flags, comparatorCap(v.Comparator), matchCap(v.MatchType))
+		if len(v.Variables) > 0 {
+			addCap(set, capVariables)
+		}
 	case *ValidNotifyMethodTest:
 		addCap(set, capEnotify)
 	case *NotifyMethodCapabilityTest:
